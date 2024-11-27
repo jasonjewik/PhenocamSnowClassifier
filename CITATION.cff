@@ -10,7 +10,6 @@ type: software
 authors:
   - given-names: Jason
     family-names: Jewik
-    email: jason.jewik@cs.ucla.edu
-    affiliation: UCLA
+    email: jason.jewik@gmail.com
 repository-code: 'https://github.com/jasonjewik/PhenoCamSnow'
 license: MIT

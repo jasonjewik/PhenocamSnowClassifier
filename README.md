@@ -5,17 +5,13 @@
 
 **PhenoCamSnow** is a Python package for quickly building deep learning models to classify [PhenoCam images](https://phenocam.sr.unh.edu/).
 
-## Installation
+## Quickstart
 
-PhenoCamSnow supports Python 3.7+ and can be installed via pip:
+PhenoCamSnow requires Python 3.10+ and can be installed via pip:
 
 ```console
 pip install phenocam-snow
 ```
-
-Optional dependencies for development and documentation purposes can be installed by specifying the extras `[dev]` and `[docs]`, repsectively. 
-
-## Example Usage
 
 The following code snippets show how to train and evaluate a model on classifying images from the canadaojp site into "snow", "no snow", and "too dark".
 
@@ -42,6 +38,10 @@ python -m phenocam_snow.predict \
 ```
 
 Advanced usage details can be found in the [documentation](http://phenocamsnow.readthedocs.io/).
+
+## Development
+
+PhenoCamSnow uses [Poetry](https://python-poetry.org) for package management. After cloning the repository to your local development environment, install the dependencies with `poetry install`. You can find the location of the virtual environment to set your IDE's Python executable path with `poetry env info`.
 
 ## Citation
 
