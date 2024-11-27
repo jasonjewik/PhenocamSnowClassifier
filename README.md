@@ -43,6 +43,8 @@ Advanced usage details can be found in the [documentation](http://phenocamsnow.r
 
 PhenoCamSnow uses [Poetry](https://python-poetry.org) for package management. After cloning the repository to your local development environment, install the dependencies with `poetry install`. You can find the location of the virtual environment to set your IDE's Python executable path with `poetry env info`.
 
+Install the pre-commit hooks with `make install-git-hooks`.
+
 ## Citation
 
 If you use PhenoCamSnow for your work, please see [`CITATION.cff`](CITATION.cff) or use the citation prompt provided by GitHub in the sidebar.
