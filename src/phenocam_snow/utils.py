@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import random
 import requests
+from urllib.parse import urlparse
+from .get_all_images import output_image_paths, read_image_paths, select_random_photos
 
 # Third party
 import numpy as np
@@ -90,74 +92,34 @@ def download(site_name, dates, save_to, n_photos):
     log_filepath = save_dir.joinpath(log_filename)
 
     with open(log_filepath, "a") as log_file:
-        # Randomly order all possible timestamps
-        date_range = list(pd.date_range(start=dates[0], end=dates[1], freq="30min"))
-        random.shuffle(date_range)
 
-        # Download images
-        home_url = f"https://phenocam.nau.edu/webcam/browse/{site_name}"
-        img_template = f"https://phenocam.nau.edu/data/archive/{site_name}"
-        n_downloaded = 0
+        output_file = output_image_paths(site_name)
+        image_path_list = read_image_paths(output_file)
+        random_sample = select_random_photos(image_path_list, n_photos)
 
-        # Keep downloading until the number downloaded is the number requested
-        # or until we are out of dates to sample images from
-        while n_downloaded < n_photos and len(date_range) > 0:
-            my_datetime = date_range.pop()
-            Y = str(my_datetime.year)
-            m = str(my_datetime.month).zfill(2)
-            D = str(my_datetime.day).zfill(2)
-            month_url = f"{home_url}/{Y}/{m}/{D}"
+        for rnd_img in random_sample:
+            # Extract the file name from the URL by getting the last part of the path
+            file_name = os.path.basename(urlparse(rnd_img).path)
+            
+            # Full path to where the image will be saved
+            file_path = os.path.join(save_dir, file_name)
+
             try:
-                resp1 = requests.get(month_url, timeout=10)
-            except:
-                log_file.write(f"ERROR:Request timed out\n")
-                continue
-            if resp1.ok:  # Access the archive for the chosen timestamp's month
-                arr = resp1.text.split('<span class="imglabel">')[1:]
-                success = False
-                for a in arr:
-                    orig_timestamp = a.split("&nbsp")[0].strip()
-                    strip_timestamp = orig_timestamp.replace(":", "")
-                    try:
-                        pd_timestamp = pd.to_datetime(f"{Y}-{m}-{D} {orig_timestamp}")
-                    except:
-                        log_file.write(f"WARN:Could not parse {orig_timestamp}\n")
-                        break
-                    # Find the image within 5 minutes of the chosen timestamp
-                    if abs(my_datetime - pd_timestamp) <= pd.Timedelta("5min"):
-                        img_fname = f"{site_name}_{Y}_{m}_{D}_{strip_timestamp}.jpg"
-                        img_url = f"{img_template}/{Y}/{m}/{img_fname}"
-                        output_fpath = save_dir.joinpath(img_fname)
-                        if output_fpath.is_file():
-                            log_file.write(
-                                f"WARN:{img_fname} was already downloaded, skipping\n"
-                            )
-                            break
-                        try:
-                            resp2 = requests.get(img_url, timeout=10)
-                        except Exception as e:
-                            log_file.write(f"ERROR:{e}\n")
-                        if resp2.ok:
-                            try:
-                                img = Image.open(BytesIO(resp2.content))
-                                img.save(output_fpath)
-                                success = True
-                                n_downloaded += 1
-                                log_file.write(f"INFO:Retrieved {resp2.url}\n")
-                            except:
-                                log_file.write(
-                                    f"WARN:Could not read or save image from {resp2.url}\n"
-                                )
-                            break
-                        else:
-                            log_file.write(f"WARN:Could not reach {resp2.url}\n")
-                if not success:
-                    log_file.write(
-                        f"WARN:Could not find an image within 5 minutes of {str(my_datetime)}\n"
-                    )
-            else:
-                log_file.write(f"WARN:Could not reach {month_url}\n")
-
+                # Send a GET request to download the image
+                response = requests.get(rnd_img, stream=True)
+                
+                # Check if the request was successful
+                if response.status_code == 200:
+                    # Write the image to a file in the save_to directory
+                    with open(file_path, 'wb') as file:
+                        for chunk in response.iter_content(1024):
+                            file.write(chunk)
+                    log_file.write(f"INFO: Downloaded {rnd_img} and saved to {file_path}\n")
+                else:
+                    log_file.write(f"WARN: Failed to download {rnd_img}. HTTP Status Code: {response.status_code}\n")
+            
+            except requests.exceptions.RequestException as e:
+                log_file.write(f"ERROR: Error downloading {rnd_img}: {e}\n")
 
 def download_from_log(source_log, save_to):
     """Downloads images that are listed in a log file.
