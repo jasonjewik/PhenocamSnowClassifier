@@ -1,17 +1,14 @@
-# Standard library imports
-from argparse import ArgumentParser
 import os
+from argparse import ArgumentParser
 
-# Local application imports
+import numpy as np
+import pandas as pd
+import torch
+from PIL import Image
+
 from .data import *
 from .model import *
 from .utils import *
-
-# Third party imports
-import numpy as np
-import pandas as pd
-from PIL import Image
-import torch
 
 
 def main():
@@ -35,9 +32,7 @@ def main():
                             images in a local directory.",
     )
     parser.add_argument(
-        "--urls",
-        default=None,
-        help="A file containing URLs, one per line."
+        "--urls", default=None, help="A file containing URLs, one per line."
     )
     args = parser.parse_args()
 

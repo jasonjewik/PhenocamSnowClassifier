@@ -31,16 +31,9 @@ format:
 	poetry run black src
 	poetry run black tests
 
-.PHONY: unit-test
-unit-test:
-	poetry run pytest --pyargs --only-unit -rfExX --ignore=src --ignore=infra
-
-.PHONY: integration-test
-integration-test:
-	poetry run pytest --pyargs --only-integration -rfExX --ignore=src --ignore=infra
-
 .PHONY: test
-test: unit-test integration-test
+test: 
+	poetry run pytest --pyargs -rfExX
 
 .PHONY: code-coverage
 code-coverage:

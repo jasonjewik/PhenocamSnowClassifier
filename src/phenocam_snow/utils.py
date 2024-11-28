@@ -1,162 +1,202 @@
-# Standard library
+import os
+import random
+import re
 from datetime import datetime
 from io import BytesIO
-import os
 from pathlib import Path
-import random
-import requests
 
-# Third party
-import numpy as np
 import pandas as pd
+import requests
 from PIL import Image
 
 
-def get_site_names():
+def get_site_names() -> list[str]:
     """Gets all available PhenoCam site names.
 
-    :return: The list of PhenoCam site names, or `None` if an error occurred.
-    :rtype: List[str]|None
+    :param request_timeout_seconds: time to wait until the request is considered timed out, defaults to 3 seconds
+    :type request_timeout_seconds: int
+
+    :return: The list of PhenoCam site names
+    :rtype: list[str]
+
+    :raises requests.exceptions.Timeout: if the GET request times out
+    :raises RuntimeError: if non-200 response is received
     """
-    site_names = []
-    try:
-        resp = requests.get(
-            "https://phenocam.nau.edu/webcam/network/table/", timeout=10
-        )
-        if resp.ok:
-            arr0 = resp.text.split("<tbody>")
-            arr1 = arr0[1].split("</tbody>")
-            arr2 = arr1[0].split("<a href=")
-            for i in range(1, len(arr2)):
-                name = arr2[i].split("</a>")[0].split(">")[1]
-                site_names.append(name)
-            return site_names
-        else:
-            print("Could not retrieve site names")
-    except:
-        print("Request timed out")
-    return None
+    url = "https://phenocam.nau.edu/webcam/network/table/"
+    pattern = re.compile(r'"\/webcam\/sites\/(.+)/"')
+    resp = requests.get(url, timeout=3)
+    if resp.status_code != 200:
+        raise RuntimeError(f"did not get 200 response from {url}")
+    return pattern.findall(resp.text)
 
 
-def get_site_dates(site_name):
-    """Gets the dates of the first and last images collected at a site.
+def get_site_months(site_name: str) -> list[str]:
+    """Gets all available months for a PhenoCam site.
 
-    :param site_name: The name of the PhenoCam site to download from.
+    :param site_name: The name of the site to check.
     :type site_name: str
-    :return: A 2-tuple of the format `(first_date, last_date)`, or
-        `(None, None)` if an error occurred.
-    :rtype: Tuple[str,str]|Tuple[None, None]
+
+    :return: the list of URLs for the given site's months
+    :rtype: list[str]
+
+    :raises requests.exceptions.Timeout: if the GET request times out
+    :raises RuntimeError: if non-200 response is received
     """
-    start_date, end_date = None, None
-    try:
-        resp = requests.get(
-            f"https://phenocam.nau.edu/webcam/sites/{site_name}/", timeout=10
-        )
-        if resp.ok:
-            start_date = resp.text.split("<strong>Start Date:</strong> ")[1][:10]
-            end_date = resp.text.split("<strong>Last Date:</strong> ")[1][:10]
-        else:
-            print("Could not retrieve start and end date")
-    except:
-        print("Request timed out")
-    return (start_date, end_date)
+    url = f"https://phenocam.nau.edu/webcam/browse/{site_name}"
+    pattern = re.compile(rf'"\/webcam\/browse\/{site_name}(\/.+\/.+)"')
+    resp = requests.get(url, timeout=3)
+    if resp.status_code != 200:
+        raise RuntimeError(f"did not get 200 response from {url}")
+    return [f"{url}{path}" for path in pattern.findall(resp.text)]
 
 
-def download(site_name, dates, save_to, n_photos):
+def get_site_dates(site_name: str, year: str, month: str) -> list[str]:
+    """Gets all available dates for a PhenoCam site in a given year and month.
+
+    :param site_name: The name of the site to check.
+    :type site_name: str
+    :param year: The year to retrieve dates for as a string like "YYYY".
+    :type year: str
+    :param month: The month to retrieve dates for as a zero-leading string like "01" or "12".
+    :type month: str
+
+    :return: the list of URLs for the given site's dates in the given year and month
+    :rtype: list[str]
+
+    :raises requests.exceptions.Timeout: if the GET request times out
+    :raises RuntimeError: if non-200 response is received
+    """
+    url = f"https://phenocam.nau.edu/webcam/browse/{site_name}/{year}/{month}"
+    pattern = re.compile(rf'"\/webcam\/browse\/{site_name}\/.+\/.+(\/.+)\/"')
+    resp = requests.get(url, timeout=3)
+    if resp.status_code != 200:
+        raise RuntimeError(f"did not get 200 response from {url}")
+    return [f"{url}{path}" for path in pattern.findall(resp.text)]
+
+
+def get_site_images(site_name: str, year: str, month: str, date: str) -> list[str]:
+    """Gets all available images for a PhenoCam site in a given year, month, and date.
+
+    :param site_name: The name of the site to check.
+    :type site_name: str
+    :param year: The year to retrieve dates for as a string like "YYYY".
+    :type year: str
+    :param month: The month to retrieve dates for as a zero-leading string like "01" or "12".
+    :type month: str
+    :param date: The date to retrieve dates for as a zero-leading string like "01" or "30".
+    :type date: str
+
+    :return: the list of URLs for the given site's dates in the given year and month
+    :rtype: list[str]
+
+    :raises requests.exceptions.Timeout: if the GET request times out
+    :raises RuntimeError: if non-200 response is received
+    """
+    base = "https://phenocam.nau.edu"
+    url = f"{base}/webcam/browse/{site_name}/{year}/{month}/{date}"
+    pattern = re.compile(rf'"(\/data\/archive\/{site_name}\/{year}\/{month}\/.*\.jpg)"')
+    resp = requests.get(url, timeout=3)
+    if resp.status_code != 200:
+        raise RuntimeError(f"did not get 200 response from {url}")
+    return [f"{base}{path}" for path in pattern.findall(resp.text)]
+
+
+def downloads(
+    site_name: str,
+    save_to: str | Path,
+    n_photos: int | None = None,
+    log_filename: str | Path | None = None,
+) -> bool:
     """Downloads photos taken in some time range at a given site.
 
     :param site_name: The name of the site to download from.
     :type site_name: str
-    :param dates: A 2-tuple indicating the oldest and youngest allowable
-        photos.
-    :type dates: Tuple[str, str]
-    :param save_to: The destination directory for downloaded images. If the
-        directory already exists, it is NOT cleared. New photos are added to
-        the directory, except for duplicates, which are skipped.
-    :type save_to: str
-    :param n_photos: The number of photos to download.
-    :type n_photos: int
+    :param save_to: The destination directory for downloaded images. If the directory already exists, it is NOT
+        cleared. New photos are added to the directory, except for duplicates, which are skipped.
+    :type save_to: str | Path
+    :param n_photos: The max number of photos to download, if specified. Otherwise, tries to retrieve all photos.
+    :type n_photos: int | None
+    :param log_filename: Logs will be emitted to this path, if specified, otherwise logs will be emitted to a file with a
+        name like 'YYYY-mm-DDTHH-MM-SS.log' in the save_to destination directory.
+    :type log_filename: str | Path | None
+
+    :return: True if the download succeeded, False otherwise (see log file)
+    :rtype: bool
+
+    :raises ValueError: if n_photos is provided as a non-positive integer
     """
-    # Check that the directory we are saving to exists
+    if n_photos is not None and n_photos <= 0:
+        raise ValueError("if n_photos is provided, it must be a positive integer")
+
     if type(save_to) is not Path:
         save_dir = Path(save_to)
     else:
         save_dir = save_to
-    if not save_dir.is_dir():
-        os.mkdir(save_dir)
+    os.makedirs(save_dir, exist_ok=True)
 
-    # Configure logger
-    log_filename = f'{datetime.now().isoformat().split(".")[0].replace(":", "-")}.log'
+    log_filename = (
+        log_filename
+        or f'{datetime.now().isoformat().split(".")[0].replace(":", "-")}.log'
+    )
     log_filepath = save_dir.joinpath(log_filename)
 
-    with open(log_filepath, "a") as log_file:
-        # Randomly order all possible timestamps
-        date_range = list(pd.date_range(start=dates[0], end=dates[1], freq="30min"))
-        random.shuffle(date_range)
+    log_file = open(log_filepath, "a")
+    write_info = lambda msg: log_file.write(f"INFO:{msg}\n")
+    write_warn = lambda msg: log_file.write(f"WARN:{msg}\n")
+    write_error = lambda msg: log_file.write(f"ERROR:{msg}\n")
 
-        # Download images
-        home_url = f"https://phenocam.nau.edu/webcam/browse/{site_name}"
-        img_template = f"https://phenocam.nau.edu/data/archive/{site_name}"
-        n_downloaded = 0
+    try:
+        site_month_urls = get_site_months(site_name)
+    except Exception as e:
+        write_error(f"Call to get_site_months failed with {e}")
+        return False
 
-        # Keep downloading until the number downloaded is the number requested
-        # or until we are out of dates to sample images from
-        while n_downloaded < n_photos and len(date_range) > 0:
-            my_datetime = date_range.pop()
-            Y = str(my_datetime.year)
-            m = str(my_datetime.month).zfill(2)
-            D = str(my_datetime.day).zfill(2)
-            month_url = f"{home_url}/{Y}/{m}/{D}"
+    write_info(f"Retrieved {site_name}'s per-month URLs")
+
+    image_urls = []
+    year_month_str = rf"https:\/\/phenocam.nau.edu\/webcam\/browse\/{site_name}\/(?P<year>.+)\/(?P<month>.+)"
+    year_month_pattern = re.compile(year_month_str)
+    date_pattern = re.compile(year_month_str + r"\/(?P<date>.+)")
+
+    for month_url in site_month_urls:
+        match = year_month_pattern.match(month_url)
+        year, month = match.group("year"), match.group("month")
+        try:
+            site_date_urls = get_site_dates(site_name, year, month)
+        except Exception as e:
+            write_error(f"Call to get_site_dates failed with {e}")
+            return False
+        for date_url in site_date_urls:
+            match = date_pattern.match(date_url)
+            date = match.group("date")
             try:
-                resp1 = requests.get(month_url, timeout=10)
-            except:
-                log_file.write(f"ERROR:Request timed out\n")
-                continue
-            if resp1.ok:  # Access the archive for the chosen timestamp's month
-                arr = resp1.text.split('<span class="imglabel">')[1:]
-                success = False
-                for a in arr:
-                    orig_timestamp = a.split("&nbsp")[0].strip()
-                    strip_timestamp = orig_timestamp.replace(":", "")
-                    try:
-                        pd_timestamp = pd.to_datetime(f"{Y}-{m}-{D} {orig_timestamp}")
-                    except:
-                        log_file.write(f"WARN:Could not parse {orig_timestamp}\n")
-                        break
-                    # Find the image within 5 minutes of the chosen timestamp
-                    if abs(my_datetime - pd_timestamp) <= pd.Timedelta("5min"):
-                        img_fname = f"{site_name}_{Y}_{m}_{D}_{strip_timestamp}.jpg"
-                        img_url = f"{img_template}/{Y}/{m}/{img_fname}"
-                        output_fpath = save_dir.joinpath(img_fname)
-                        if output_fpath.is_file():
-                            log_file.write(
-                                f"WARN:{img_fname} was already downloaded, skipping\n"
-                            )
-                            break
-                        try:
-                            resp2 = requests.get(img_url, timeout=10)
-                        except Exception as e:
-                            log_file.write(f"ERROR:{e}\n")
-                        if resp2.ok:
-                            try:
-                                img = Image.open(BytesIO(resp2.content))
-                                img.save(output_fpath)
-                                success = True
-                                n_downloaded += 1
-                                log_file.write(f"INFO:Retrieved {resp2.url}\n")
-                            except:
-                                log_file.write(
-                                    f"WARN:Could not read or save image from {resp2.url}\n"
-                                )
-                            break
-                        else:
-                            log_file.write(f"WARN:Could not reach {resp2.url}\n")
-                if not success:
-                    log_file.write(
-                        f"WARN:Could not find an image within 5 minutes of {str(my_datetime)}\n"
-                    )
-            else:
-                log_file.write(f"WARN:Could not reach {month_url}\n")
+                image_urls.extend(get_site_images(site_name, year, month, date))
+            except Exception as e:
+                write_error(f"Call to get_site_images failed with {e}")
+                return False
+
+    random.shuffle(image_urls)
+    n_downloaded = 0
+
+    for url in image_urls:
+        try:
+            resp = requests.get(url, timeout=3)
+        except requests.exceptions.Timeout:
+            write_warn(f"request to {url} timed out")
+            continue
+        img = Image.open(BytesIO(resp.content))
+        img.save(save_dir.joinpath(os.path.basename(url)))
+        n_downloaded += 1
+        write_info(f"Retrieved {url}")
+        if n_photos is not None and n_downloaded == n_photos:
+            break
+
+    if n_downloaded < n_photos:
+        write_warn(f"Downloaded only {n_downloaded} out of {n_photos} requested photos")
+    else:
+        write_info(f"Finished downloading {n_downloaded} photos")
+
+    return True
 
 
 def download_from_log(source_log, save_to):

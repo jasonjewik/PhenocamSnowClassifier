@@ -1,15 +1,12 @@
-# Standard library
 import os
 
-# Local application
-from .utils import *
-
-# Third party
-import pytorch_lightning as pl
-from torch.utils.data import Dataset, DataLoader, random_split
-from torchvision.io import read_image
+from lightning import LightningDataModule
+from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms
+from torchvision.io import read_image
 from torchvision.models import ResNet18_Weights
+
+from .utils import *
 
 
 class PhenoCamImageDataset(Dataset):
@@ -44,7 +41,7 @@ class PhenoCamImageDataset(Dataset):
         return img, label
 
 
-class PhenoCamDataModule(pl.LightningDataModule):
+class PhenoCamDataModule(LightningDataModule):
     """pytorch_lightning DataModule that wraps the PhenoCam image dataset class."""
 
     def __init__(

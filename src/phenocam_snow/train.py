@@ -1,16 +1,12 @@
-# Standard library
 from argparse import ArgumentParser
 
-# Local application
+import torch
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.loggers import TensorBoardLogger
+
 from .data import *
 from .model import *
 from .utils import *
-
-# Third party
-import torch
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from pytorch_lightning.loggers import TensorBoardLogger
 
 
 def main():

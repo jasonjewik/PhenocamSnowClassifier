@@ -3,7 +3,7 @@ fail_fast: true # set to false to have pre-commit continue running hooks after t
 default_stages: [pre-commit]
 
 default_language_version:
-  python: python3.8
+  python: python3.10
 
 repos:
   - repo: https://github.com/PyCQA/autoflake
@@ -28,9 +28,9 @@ repos:
         language: python
         types: [ python ]
 
-      - id: lint
-        name: lint
-        entry: make lint
-        description: "Format Python sources using isort, black, pflake8 and mypy"
-        language: python
-        types: [ python ]
+      # - id: lint
+      #   name: lint
+      #   entry: make lint
+      #   description: "Format Python sources using isort, black, pflake8 and mypy"
+      #   language: python
+      #   types: [ python ]

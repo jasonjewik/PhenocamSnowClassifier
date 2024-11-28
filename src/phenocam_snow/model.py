@@ -1,16 +1,12 @@
-# Local application
-from .utils import *
-
-# Third party
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pytorch_lightning as pl
-from torchmetrics.classification import MulticlassAccuracy
 import torchvision.models as models
+from lightning import LightningModule
+from torchmetrics.classification import MulticlassAccuracy
 
 
-class PhenoCamResNet(pl.LightningModule):
+class PhenoCamResNet(LightningModule):
     """Loads pre-trained ResNet for fine-tuning."""
 
     def __init__(self, resnet, n_classes, lr=5e-4, weight_decay=0.01):
