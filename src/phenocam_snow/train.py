@@ -1,46 +1,37 @@
 from argparse import ArgumentParser
+from datetime import datetime
+from pathlib import Path
+from typing import Literal
 
+import lightning as L
 import torch
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from pytorch_lightning.loggers import TensorBoardLogger
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+from lightning.pytorch.loggers import TensorBoardLogger
 
-from .data import *
-from .model import *
-from .utils import *
+from phenocam_snow.data import PhenoCamDataModule
+from phenocam_snow.model import PhenoCamResNet
 
 
 def main():
     parser = ArgumentParser(
         description="Train a model to classify images from a given PhenoCam site"
     )
-    parser.add_argument("site_name", help="The PhenoCam site to train on.")
+    parser.add_argument("site_name")
     parser.add_argument(
         "--model",
+        choices=["resnet18", "resnet34", "resnet50", "resnet101", "resnet152"],
         default="resnet18",
-        help="Pick from 'resnet18', 'resnet34', 'resnet50', 'resnet101', or 'resnet152'. Defaults to 'resnet18'.",
     )
-    parser.add_argument(
-        "--learning_rate",
-        type=float,
-        default=5e-4,
-        help="The learning rate to use. Defaults to 5e-4.",
-    )
-    parser.add_argument(
-        "--weight_decay",
-        type=float,
-        default=0.01,
-        help="The weight decay to use. Defaults to 0.01.",
-    )
+    parser.add_argument("--learning_rate", type=float, default=5e-4)
+    parser.add_argument("--weight_decay", type=float, default=0.01)
     parser.add_argument(
         "--new",
         action="store_true",
         default=False,
         help="If given, trains and tests on new data. --n_train, --n_test, --classes are required.",
     )
-    parser.add_argument(
-        "--n_train", type=int, help="The number of train images to use."
-    )
-    parser.add_argument("--n_test", type=int, help="The number of test images to use.")
+    parser.add_argument("--n_train", type=int)
+    parser.add_argument("--n_test", type=int)
     parser.add_argument(
         "--existing",
         action="store_true",
@@ -85,102 +76,148 @@ def main():
 
 
 def train_model_with_new_data(
-    model,
-    learning_rate,
-    weight_decay,
-    site_name,
-    label_method,
-    n_train,
-    n_test,
-    classes,
-):
+    resnet_variant: Literal[
+        "resnet18", "resnet34", "resnet50", "resnet101", "resnet152"
+    ],
+    learning_rate: float,
+    weight_decay: float,
+    site_name: str,
+    label_method: str,
+    n_train: int,
+    n_test: int,
+    classes: list[str],
+) -> PhenoCamResNet:
     """Pipeline for building a model on new data.
 
-    :param model: The ResNet variant to use.
-    :type model: str
+    :param resnet_variant: The ResNet variant to use as the model backbone.
+    :type resnet_variant: Literal["resnet18", "resnet34", "resnet50", "resnet101", "resnet152"]
     :param learning_rate: The learning rate to use.
     :type learning_rate: float
     :param weight_decay: The weight decay to use.
     :type weight_decay: float
     :param site_name: The name of the PhenoCam site you want.
     :type site_name: str
-    :param label_method: How you wish to label images ("in notebook" or "via
-        subdir").
+    :param label_method: How you wish to label images ("in notebook" or "via subdir").
     :type label_method: str
     :param n_train: The number of training images to use.
     :type n_train: int
     :param n_test: The number of testing images to use.
     :type n_test: int
     :param classes: The image classes.
-    :type classes: List[str]
+    :type classes: list[str]
+
     :return: The best model obtained during training.
     :rtype: PhenoCamResNet
     """
-    ##############################
-    # 1. Download and label data #
-    ##############################
     valid_label_methods = ["in notebook", "via subdir"]
-    assert label_method in valid_label_methods
+    if label_method not in valid_label_methods:
+        raise ValueError(f"{label_method} is not a valid label method")
 
     train_dir = f"{site_name}_train"
     test_dir = f"{site_name}_test"
     train_labels = f"{train_dir}/labels.csv"
     test_labels = f"{test_dir}/labels.csv"
 
-    dm_args = dict(
-        site_name=site_name,
-        train_dir=train_dir,
-        train_labels=train_labels,
-        test_dir=test_dir,
-        test_labels=test_labels,
+    data_module = PhenoCamDataModule(
+        site_name, train_dir, train_labels, test_dir, test_labels
     )
-    dm = PhenoCamDataModule(**dm_args)
-
-    # Train data arguments
-    train_download_args = dict(
-        site_name=site_name,
-        dates=get_site_dates(site_name),
-        save_to=train_dir,
-        n_photos=n_train,
-    )
-    # Train label arguments
-    train_label_args = dict(
-        site_name=site_name,
-        categories=classes,
-        img_dir=train_dir,
-        save_to=train_labels,
-        method=label_method,
+    base_download_args = {"site_name": site_name}
+    base_label_args = {
+        "site_name": site_name,
+        "categories": classes,
+        "method": label_method,
+    }
+    data_module.prepare_data(
+        train_download_args=base_download_args
+        + {"save_to": train_dir, "n_photos": n_train},
+        train_label_args=base_label_args
+        + {"img_dir": train_dir, "save_to": train_labels},
+        test_download_args=base_download_args
+        + {"save_to": test_dir, "n_photos": n_test},
+        test_label_args=base_label_args + {"img_dir": test_dir, "save_to": test_labels},
     )
 
-    # Test data arguments
-    test_download_args = dict(
-        site_name=site_name,
-        dates=get_site_dates(site_name),
-        save_to=test_dir,
-        n_photos=n_test,
-    )
-    # Test label arguments
-    test_label_args = dict(
-        site_name=site_name,
-        categories=classes,
-        img_dir=test_dir,
-        save_to=test_labels,
-        method=label_method,
+    return _fit_and_eval_model(
+        data_module,
+        resnet_variant,
+        site_name,
+        len(classes),
+        learning_rate,
+        weight_decay,
     )
 
-    dm.prepare_data(
-        train_download_args, train_label_args, test_download_args, test_label_args
+
+def train_model_with_existing_data(
+    resnet_variant: Literal[
+        "resnet18", "resnet34", "resnet50", "resnet101", "resnet152"
+    ],
+    learning_rate: float,
+    weight_decay: float,
+    site_name: str,
+    train_dir: str | Path,
+    test_dir: str | Path,
+    classes: list[str],
+) -> PhenoCamResNet:
+    """Pipeline for building model with already downloaded/labeled data.
+
+    :param resnet_variant: The ResNet variant to use as the model backbone.
+    :type resnet_variant: str
+    :param learning_rate: The learning rate to use.
+    :type learning_rate: float
+    :param weight_decay: The weight decay to use.
+    :type weight_decay: float
+    :param site_name: The name of the PhenoCam site you want.
+    :type site_name: str
+    :param train_dir: The path to the training images directory.
+    :type train_dir: str | Path
+    :param test_dir: The path to the test images directory.
+    :type test_dir: str | Path
+    :param classes: The image classes.
+    :type classes: list[str]
+
+    :return: The best model obtained during training.
+    :rtype: PhenoCamResNet
+    """
+    if not isinstance(train_dir, Path):
+        train_dir = Path(train_dir)
+    if not isinstance(test_dir, Path):
+        test_dir = Path(test_dir)
+    data_module = PhenoCamDataModule(
+        site_name,
+        train_dir,
+        train_dir / "labels.csv",
+        test_dir,
+        test_dir / "labels.csv",
+    )
+    data_module.prepare_data()
+
+    return _fit_and_eval_model(
+        data_module,
+        resnet_variant,
+        site_name,
+        len(classes),
+        learning_rate,
+        weight_decay,
     )
 
-    ##################
-    # 2. Train model #
-    ##################
-    dm.setup(stage="fit")
-    model = PhenoCamResNet(model, len(classes), learning_rate, weight_decay)
+
+def _fit_and_eval_model(
+    data_module: PhenoCamDataModule,
+    resnet_variant: Literal[
+        "resnet18", "resnet34", "resnet52", "resnet101", "resnet152"
+    ],
+    site_name: str,
+    n_classes: int,
+    learning_rate: float,
+    weight_decay: float,
+) -> PhenoCamResNet:
+    """Helper function for above public methods. Returns the best model."""
+    data_module.setup(stage="fit")
+    model = PhenoCamResNet(resnet_variant, n_classes, learning_rate, weight_decay)
     logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"{site_name}_lightning_logs")
     callbacks = [EarlyStopping(monitor="val_loss", mode="min", min_delta=1e-8)]
     accelerator = "gpu" if torch.cuda.is_available() else None
-    trainer = pl.Trainer(
+    trainer = L.Trainer(
         logger=logger,
         callbacks=callbacks,
         max_epochs=50,
@@ -188,17 +225,11 @@ def train_model_with_new_data(
         accelerator=accelerator,
         precision=16,
     )
-    trainer.fit(model, dm)
+    trainer.fit(model, data_module)
 
-    #####################
-    # 3. Evaluate model #
-    #####################
-    dm.setup(stage="test")
-    trainer.test(datamodule=dm, ckpt_path="best")
+    data_module.setup(stage="test")
+    trainer.test(datamodule=data_module, ckpt_path="best")
 
-    ######################
-    # 4. Note best model #
-    ######################
     best_model_path = trainer.checkpoint_callback.best_model_path
     best_models_csv = Path("best_model_paths.csv")
     if not best_models_csv.exists():
@@ -207,102 +238,7 @@ def train_model_with_new_data(
     with open(best_models_csv, "a") as f:
         f.write(f"{datetime.now().isoformat()},{site_name},{best_model_path}\n")
 
-    ########################
-    # 5. Return best model #
-    ########################
-    best_model = model.load_from_checkpoint(best_model_path)
-    best_model.freeze()
-    print(f"Path of best model: {best_model_path}")
-    return best_model
-
-
-def train_model_with_existing_data(
-    model,
-    learning_rate,
-    weight_decay,
-    site_name,
-    train_dir,
-    test_dir,
-    classes,
-):
-    """Pipeline for building model with already downloaded/labeled data.
-
-    :param model: The ResNet variant to use.
-    :type model: str
-    :param learning_rate: The learning rate to use.
-    :type learning_rate: float
-    :param weight_decay: The weight decay to use.
-    :type weight_decay: float
-    :param site_name: The name of the PhenoCam site you want.
-    :type site_name: str
-    :param label_method: How you wish to label images ("in notebook" or "via
-        subdir").
-    :type label_method: str
-    :param n_train: The number of training images to use.
-    :type n_train: int
-    :param n_test: The number of testing images to use.
-    :type n_test: int
-    :param classes: The image classes.
-    :type classes: List[str]
-    :return: The best model obtained during training.
-    :rtype: PhenoCamResNet
-    """
-
-    ###################
-    # 1. Prepare data #
-    ###################
-    if type(train_dir) is str:
-        train_dir = Path(train_dir)
-    if type(test_dir) is str:
-        test_dir = Path(test_dir)
-    dm_args = dict(
-        site_name=site_name,
-        train_dir=train_dir,
-        train_labels=train_dir.joinpath("labels.csv"),
-        test_dir=test_dir,
-        test_labels=test_dir.joinpath("labels.csv"),
-    )
-    dm = PhenoCamDataModule(**dm_args)
-    dm.prepare_data()
-
-    ##################
-    # 2. Train model #
-    ##################
-    dm.setup(stage="fit")
-    model = PhenoCamResNet(model, len(classes), learning_rate, weight_decay)
-    logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"{site_name}_lightning_logs")
-    callbacks = [EarlyStopping(monitor="val_loss", mode="min")]
-    accelerator = "gpu" if torch.cuda.is_available() else None
-    trainer = pl.Trainer(
-        logger=logger,
-        callbacks=callbacks,
-        max_epochs=50,
-        accelerator=accelerator,
-        precision=16,
-    )
-    trainer.fit(model, dm)
-
-    #####################
-    # 3. Evaluate model #
-    #####################
-    dm.setup(stage="test")
-    trainer.test(datamodule=dm, ckpt_path="best")
-
-    ######################
-    # 4. Note best model #
-    ######################
-    best_model_path = trainer.checkpoint_callback.best_model_path
-    best_models_csv = Path("best_model_paths.csv")
-    if not best_models_csv.exists():
-        with open(best_models_csv, "w") as f:
-            f.write("timestamp,site_name,best_model\n")
-    with open(best_models_csv, "a") as f:
-        f.write(f"{datetime.now().isoformat()},{site_name},{best_model_path}\n")
-
-    ########################
-    # 5. Return best model #
-    ########################
-    best_model = model.load_from_checkpoint(best_model_path)
+    best_model = PhenoCamResNet.load_from_checkpoint(best_model_path)
     best_model.freeze()
     print(f"Path of best model: {best_model_path}")
     return best_model

@@ -333,8 +333,7 @@ def read_labels(labels_file: str | Path) -> pd.DataFrame:
     :param labels_file: The path to the labels file.
     :type labels_file: str | Path
 
-    :return: A pandas DataFrame where each row contains the filename of an image, its label as a string, and the
-        integer encoding of that label.
+    :return: A pandas DataFrame with "filename" (str), "label" (str), and "int_label" (int) columns.
     :rtype: pd.DataFrame
     """
     labels_dict = {}
