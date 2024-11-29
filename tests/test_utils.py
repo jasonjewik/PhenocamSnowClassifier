@@ -1,6 +1,8 @@
+import os
 from dataclasses import dataclass
 from io import BytesIO
 
+import pandas as pd
 import pytest
 import requests
 from PIL import Image
@@ -12,6 +14,8 @@ from phenocam_snow.utils import (
     get_site_images,
     get_site_months,
     get_site_names,
+    label_images_via_subdir,
+    read_labels,
 )
 
 
@@ -27,6 +31,11 @@ def get_test_image_as_bytes():
     img = Image.open("tests/data/test_img.jpg")
     img.save(bytes_buffer, format=img.format)
     return bytes_buffer.getvalue()
+
+
+@pytest.fixture
+def get_test_image():
+    return Image.open("tests/data/test_img.jpg")
 
 
 @pytest.fixture
@@ -340,3 +349,63 @@ def test_download_from_log(
         assert lines[3] == f"WARN:Downloaded only 0 out of {len(images)} URLs read"
     else:
         raise ValueError("unrecognized test case")
+
+
+def test_label_images_via_subdir(tmp_path, get_test_image):
+    site_name = "canadaojp"
+    categories = ["snow", "no_snow", "too_dark"]
+    img_dir = tmp_path
+    save_to = tmp_path / "annotated_data.csv"
+
+    # We can't provide user input, so we are going to set up everything first then bypass the user input part
+    for i, cat in enumerate(categories):
+        (img_dir / cat).mkdir(exist_ok=True)
+        get_test_image.save(img_dir / cat / f"{i}.jpg")
+
+    label_images_via_subdir(
+        site_name, categories, img_dir, save_to, bypass_user_prompt=True
+    )
+
+    with open(save_to, "r") as f:
+        lines = [line.strip() for line in f.readlines()]
+
+    assert lines == [
+        f"# Site: {site_name}",
+        "# Categories:",
+        f"# 0. {categories[0]}",
+        f"# 1. {categories[1]}",
+        f"# 2. {categories[2]}",
+        "filename,label",
+        "0.jpg,snow",
+        "1.jpg,no_snow",
+        "2.jpg,too_dark",
+    ]
+
+    assert set([os.path.basename(fpath) for fpath in img_dir.glob("*.jpg")]) == set(
+        ["0.jpg", "1.jpg", "2.jpg"]
+    )
+
+
+def test_read_labels(tmp_path):
+    labels_file = tmp_path / "annotated_data.csv"
+    file_content = """
+        # Site: canadaojp
+        # Categories:
+        # 0. snow
+        # 1. no_snow
+        # 2. too_dark
+        filename,label
+        0.jpg,snow
+        1.jpg,no_snow
+        2.jpg,too_dark
+    """
+    with open(labels_file, "w") as f:
+        for line in file_content.split("\n"):
+            f.write(line.strip() + "\n")
+
+    actual_df = read_labels(labels_file)
+    expected_df = pd.DataFrame(
+        data=[("0.jpg", "snow", 0), ("1.jpg", "no_snow", 1), ("2.jpg", "too_dark", 2)],
+        columns=["filename", "label", "int_label"],
+    )
+    pd.testing.assert_frame_equal(actual_df, expected_df)

@@ -270,25 +270,31 @@ def download_from_log(
     log_file.close()
 
 
-def label_images_via_subdir(site_name, categories, img_dir, save_to):
-    """Allows the user to label images by moving them into the appropriate
-       subdirectory.
+def label_images_via_subdir(
+    site_name: str,
+    categories: list[str],
+    img_dir: str | Path,
+    save_to: str | Path,
+    bypass_user_prompt: bool = False,
+) -> None:
+    """Allows the user to label images by moving them into the appropriate subdirectory. After the labels have been
+    recorded into an annotations file, the images are moved back into the original directory.
 
     :param site_name: The name of the site.
     :type site_name: str
     :param categories: The image categories.
-    :type categories: List[str]
+    :type categories: list[str]
     :param img_dir: The directory containing the image subdirectories.
-    :type img_dir: str
+    :type img_dir: str | Path
     :param save_to: The destination path for the labels file.
-    :type save_to: str
+    :type save_to: str | Path
+    :param bypass_user_prompt: whether to bypass the user prompt (for testing purposes, defaults to False)
+    :type bypass_user_prompt: bool
     """
-    # Check that the image directory exists
     if type(img_dir) is not Path:
         img_dir = Path(img_dir)
     assert img_dir.is_dir()
 
-    # Check that the category subdirectories exist
     dircats = []
     for cat in categories:
         dircat = img_dir.joinpath(Path(cat))
@@ -296,34 +302,24 @@ def label_images_via_subdir(site_name, categories, img_dir, save_to):
         if not dircat.exists() or not dircat.is_dir():
             os.mkdir(dircat)
 
-    # Await user acknowledgement
-    input(
-        "Move images into the appropriate sub-directory then press any key to continue."
-    )
+    if not bypass_user_prompt:
+        input(
+            "Move images into the appropriate sub-directory then press any key to continue."
+        )
 
-    # Create annotations file
-    timestamps = []
+    filenames = []
     for dircat in dircats:
-        timestamps_subarr = []
-        for img_fpath in dircat.glob("*.jpg"):
-            ts_arr = img_fpath.stem.split("_")
-            ts = "-".join(ts_arr[1:4])
-            hms = ts_arr[-1]
-            ts += f" {hms[:2]}:{hms[2:4]}:{hms[4:]}"
-            timestamps_subarr.append(ts)
-        timestamps.append(timestamps_subarr)
+        filenames.extend([os.path.basename(fpath) for fpath in dircat.glob("*.jpg")])
     df = pd.DataFrame(
-        zip(timestamps, categories), columns=["timestamp", "label"]
-    ).explode("timestamp")
+        zip(filenames, categories), columns=["filename", "label"]
+    ).explode("filename")
     with open(save_to, "w+") as f:
-        f.write(f"# Site: {img_dir.stem if site_name is None else site_name}\n")
+        f.write(f"# Site: {site_name}\n")
         f.write("# Categories:\n")
         for i, cat in enumerate(categories):
             f.write(f"# {i}. {cat}\n")
     df.to_csv(save_to, mode="a", index=False)
 
-    # Flatten directory (i.e., pull all images out of the subdirectories
-    # back into their original directory)
     for item in img_dir.glob("*"):
         if item.is_dir():
             for subitem in sorted(item.glob("*")):
@@ -331,22 +327,16 @@ def label_images_via_subdir(site_name, categories, img_dir, save_to):
                 subitem.rename(new_path)
 
 
-def read_labels(labels_file):
+def read_labels(labels_file: str | Path) -> pd.DataFrame:
     """Reads image-label pairs.
 
     :param labels_file: The path to the labels file.
-    :type labels_file: str
-    :return: A pandas DataFrame where each row contains the timestamp of an
-        image, the path to that image, its label as a string, and the integer
-        encoding of that label.
+    :type labels_file: str | Path
+
+    :return: A pandas DataFrame where each row contains the filename of an image, its label as a string, and the
+        integer encoding of that label.
     :rtype: pd.DataFrame
     """
-    # Extract meta information
-    site_name = (
-        pd.read_csv(labels_file, nrows=1, header=None)[0]
-        .tolist()[0]
-        .split("# Site: ")[1]
-    )
     labels_dict = {}
     with open(labels_file, "r") as f:
         start_reading = False
@@ -362,23 +352,7 @@ def read_labels(labels_file):
             if line == "# Categories:\n":
                 start_reading = True
 
-    # Sort timestamps
     df = pd.read_csv(labels_file, comment="#")
-    df.set_index("timestamp", inplace=True)
-    df.sort_index(inplace=True)
-
-    # Encode the labels as integers
-    df["label"] = df["label"].astype("category")
     df["int_label"] = [labels_dict[x] for x in df["label"]]
-
-    # Create image file names from timestamps
-    img_name_col = []
-    for ts in df.index:
-        year = ts[:4]
-        month = ts[5:7]
-        day = ts[8:10]
-        hms = ts.split(" ")[1].replace(":", "")
-        img_name_col.append(f"{site_name}_{year}_{month}_{day}_{hms}.jpg")
-    df["img_name"] = img_name_col
 
     return df
