@@ -181,6 +181,7 @@ def test_successful_download(
     with open(save_to / log_filename, "r") as f:
         lines = [line.strip() for line in f.readlines()]
 
+    assert len(lines) == 4
     assert lines[0] == f"INFO:Retrieved {site_name}'s per-month URLs"
     assert set(lines[1:3]) == set(
         f"INFO:Retrieved {url}" for url in mock_get_site_images()
@@ -197,3 +198,93 @@ def test_download_with_bad_n_photos_arg(n_photos, tmp_path):
         ValueError, match="if n_photos is provided, it must be a positive integer"
     ):
         download(site_name, save_to, n_photos, log_filename)
+
+
+@pytest.mark.parametrize(
+    ["function"],
+    [
+        ("phenocam_snow.utils.get_site_months",),
+        ("phenocam_snow.utils.get_site_dates",),
+        ("phenocam_snow.utils.get_site_images",),
+    ],
+)
+def test_download_with_fatal_timeouts(function, tmp_path, monkeypatch):
+    site_name = "canadaojp"
+    save_to = tmp_path
+    n_photos = 2
+    log_filename = "test.log"
+
+    def raise_timeout(*args, **kwargs):
+        raise requests.exceptions.Timeout()
+
+    def mock_get_site_months(*args, **kwargs):
+        return ["https://phenocam.nau.edu/webcam/browse/canadaojp/2024/01"]
+
+    def mock_get_site_dates(*args, **kwargs):
+        return ["https://phenocam.nau.edu/webcam/browse/canadaojp/2024/01/01"]
+
+    def mock_get_site_images(*args, **kwargs):
+        return [
+            "https://phenocam.nau.edu/data/archive/canadaojp/2024/01/canadaojp_2024_01_01_000010.jpg",
+            "https://phenocam.nau.edu/data/archive/canadaojp/2024/01/canadaojp_2024_01_01_003013.jpg",
+        ]
+
+    monkeypatch.setattr("phenocam_snow.utils.get_site_months", mock_get_site_months)
+    monkeypatch.setattr("phenocam_snow.utils.get_site_dates", mock_get_site_dates)
+    monkeypatch.setattr("phenocam_snow.utils.get_site_images", mock_get_site_images)
+
+    # Override the function that should result in fatal timeout error
+    monkeypatch.setattr(function, raise_timeout)
+
+    assert download(site_name, save_to, n_photos, log_filename) == False
+
+    with open(save_to / log_filename, "r") as f:
+        lines = [line.strip() for line in f.readlines()]
+
+    if function == "phenocam_snow.utils.get_site_months":
+        assert len(lines) == 1
+        assert lines[0] == "ERROR:Call to get_site_months failed with Timeout"
+    elif function == "phenocam_snow.utils.get_site_dates":
+        assert len(lines) == 2
+        assert lines[0] == f"INFO:Retrieved {site_name}'s per-month URLs"
+        assert lines[1] == "ERROR:Call to get_site_dates failed with Timeout"
+    elif function == "phenocam_snow.utils.get_site_images":
+        assert len(lines) == 2
+        assert lines[0] == f"INFO:Retrieved {site_name}'s per-month URLs"
+        assert lines[1] == f"ERROR:Call to get_site_images failed with Timeout"
+
+
+def test_download_with_nonfatal_timeouts(tmp_path, monkeypatch, make_mock_http_get):
+    site_name = "canadaojp"
+    save_to = tmp_path
+    n_photos = 2
+    log_filename = "test.log"
+
+    def mock_get_site_months(*args, **kwargs):
+        return ["https://phenocam.nau.edu/webcam/browse/canadaojp/2024/01"]
+
+    def mock_get_site_dates(*args, **kwargs):
+        return ["https://phenocam.nau.edu/webcam/browse/canadaojp/2024/01/01"]
+
+    def mock_get_site_images(*args, **kwargs):
+        return [
+            "https://phenocam.nau.edu/data/archive/canadaojp/2024/01/canadaojp_2024_01_01_000010.jpg",
+            "https://phenocam.nau.edu/data/archive/canadaojp/2024/01/canadaojp_2024_01_01_003013.jpg",
+        ]
+
+    monkeypatch.setattr("phenocam_snow.utils.get_site_months", mock_get_site_months)
+    monkeypatch.setattr("phenocam_snow.utils.get_site_dates", mock_get_site_dates)
+    monkeypatch.setattr("phenocam_snow.utils.get_site_images", mock_get_site_images)
+    monkeypatch.setattr("requests.get", make_mock_http_get(True, None))
+
+    assert download(site_name, save_to, n_photos, log_filename) == True
+
+    with open(save_to / log_filename, "r") as f:
+        lines = [line.strip() for line in f.readlines()]
+
+    assert len(lines) == 4
+    assert lines[0] == f"INFO:Retrieved {site_name}'s per-month URLs"
+    assert set(lines[1:3]) == set(
+        f"WARN:request to {url} timed out" for url in mock_get_site_images()
+    )
+    assert lines[3] == f"WARN:Downloaded only 0 out of {n_photos} requested photos"

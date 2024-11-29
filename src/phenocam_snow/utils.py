@@ -148,7 +148,7 @@ def download(
     try:
         site_month_urls = get_site_months(site_name)
     except Exception as e:
-        write_error(f"Call to get_site_months failed with {e}")
+        write_error(f"Call to get_site_months failed with {e.__class__.__name__}")
         return False
 
     write_info(f"Retrieved {site_name}'s per-month URLs")
@@ -164,7 +164,7 @@ def download(
         try:
             site_date_urls = get_site_dates(site_name, year, month)
         except Exception as e:
-            write_error(f"Call to get_site_dates failed with {e}")
+            write_error(f"Call to get_site_dates failed with {e.__class__.__name__}")
             return False
         for date_url in site_date_urls:
             match = date_pattern.match(date_url)
@@ -172,7 +172,9 @@ def download(
             try:
                 image_urls.extend(get_site_images(site_name, year, month, date))
             except Exception as e:
-                write_error(f"Call to get_site_images failed with {e}")
+                write_error(
+                    f"Call to get_site_images failed with {e.__class__.__name__}"
+                )
                 return False
 
     random.shuffle(image_urls)
