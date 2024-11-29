@@ -101,7 +101,7 @@ def get_site_images(site_name: str, year: str, month: str, date: str) -> list[st
     return [f"{base}{path}" for path in pattern.findall(resp.text)]
 
 
-def downloads(
+def download(
     site_name: str,
     save_to: str | Path,
     n_photos: int | None = None,
@@ -195,6 +195,8 @@ def downloads(
         write_warn(f"Downloaded only {n_downloaded} out of {n_photos} requested photos")
     else:
         write_info(f"Finished downloading {n_downloaded} photos")
+
+    log_file.close()
 
     return True
 

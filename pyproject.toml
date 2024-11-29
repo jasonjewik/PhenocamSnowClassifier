@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "phenocam-snow"
-version = "0.1.2"
+version = "0.2.0"
 description = "Pipeline for building deep learning models to classify PhenoCam images."
 authors = ["Jason Jewik <jason.jewik@gmail.com>"]
 license = "MIT"

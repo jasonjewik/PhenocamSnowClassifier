@@ -1,9 +1,12 @@
 from dataclasses import dataclass
+from io import BytesIO
 
 import pytest
 import requests
+from PIL import Image
 
 from phenocam_snow.utils import (
+    download,
     get_site_dates,
     get_site_images,
     get_site_months,
@@ -14,15 +17,26 @@ from phenocam_snow.utils import (
 @dataclass
 class MockHttpResponse:
     status_code: int
+    content: bytes | None
+
+
+@pytest.fixture
+def get_test_image_as_bytes():
+    bytes_buffer = BytesIO()
+    img = Image.open("tests/data/test_img.jpg")
+    img.save(bytes_buffer, format=img.format)
+    return bytes_buffer.getvalue()
 
 
 @pytest.fixture
 def make_mock_http_get():
-    def _make_mock_http_get(raises_timeout: bool, status_code: int):
+    def _make_mock_http_get(
+        raises_timeout: bool, status_code: int, content: bytes | None = None
+    ):
         def mock_http_get(*args, **kwargs):
             if raises_timeout:
                 raise requests.exceptions.Timeout()
-            return MockHttpResponse(status_code)
+            return MockHttpResponse(status_code, content)
 
         return mock_http_get
 
@@ -31,7 +45,7 @@ def make_mock_http_get():
 
 def test_successful_get_site_names():
     actual_site_names = get_site_names()
-    with open("tests/site_names.csv", "r") as f:
+    with open("tests/data/site_names.csv", "r") as f:
         expected_site_names = f.readlines()[0].split(",")
     assert actual_site_names == expected_site_names
 
@@ -57,7 +71,7 @@ def test_unsuccessful_get_site_names(
 
 def test_successful_get_site_months():
     actual_site_months = get_site_months(site_name="canadaojp")
-    with open("tests/site_months.csv", "r") as f:
+    with open("tests/data/site_months.csv", "r") as f:
         expected_site_months = f.readlines()[0].split(",")
     assert actual_site_months == expected_site_months
 
@@ -83,7 +97,7 @@ def test_unsuccessful_get_site_months(
 
 def test_successful_get_site_dates():
     actual_site_dates = get_site_dates(site_name="canadaojp", year="2024", month="01")
-    with open("tests/site_dates.csv", "r") as f:
+    with open("tests/data/site_dates.csv", "r") as f:
         expected_site_dates = f.readlines()[0].split(",")
     assert actual_site_dates == expected_site_dates
 
@@ -111,7 +125,7 @@ def test_successful_get_site_images():
     actual_site_images = get_site_images(
         site_name="canadaojp", year="2024", month="01", date="01"
     )
-    with open("tests/site_images.csv", "r") as f:
+    with open("tests/data/site_images.csv", "r") as f:
         expected_site_images = f.readlines()[0].split(",")
     assert actual_site_images == expected_site_images
 
@@ -133,3 +147,53 @@ def test_unsuccessful_get_site_images(
     monkeypatch.setattr("requests.get", mock_http_get)
     with pytest.raises(error_type, match=match):
         get_site_images(site_name="does_not_matter", year="1970", month="01", date="01")
+
+
+def test_successful_download(
+    tmp_path, make_mock_http_get, get_test_image_as_bytes, monkeypatch
+):
+    site_name = "canadaojp"
+    save_to = tmp_path
+    n_photos = 2
+    log_filename = "test.log"
+
+    def mock_get_site_months(*args, **kwargs):
+        return ["https://phenocam.nau.edu/webcam/browse/canadaojp/2024/01"]
+
+    def mock_get_site_dates(*args, **kwargs):
+        return ["https://phenocam.nau.edu/webcam/browse/canadaojp/2024/01/01"]
+
+    def mock_get_site_images(*args, **kwargs):
+        return [
+            "https://phenocam.nau.edu/data/archive/canadaojp/2024/01/canadaojp_2024_01_01_000010.jpg",
+            "https://phenocam.nau.edu/data/archive/canadaojp/2024/01/canadaojp_2024_01_01_003013.jpg",
+        ]
+
+    monkeypatch.setattr("phenocam_snow.utils.get_site_months", mock_get_site_months)
+    monkeypatch.setattr("phenocam_snow.utils.get_site_dates", mock_get_site_dates)
+    monkeypatch.setattr("phenocam_snow.utils.get_site_images", mock_get_site_images)
+    monkeypatch.setattr(
+        "requests.get", make_mock_http_get(False, 200, get_test_image_as_bytes)
+    )
+
+    assert download(site_name, save_to, n_photos, log_filename) == True
+
+    with open(save_to / log_filename, "r") as f:
+        lines = [line.strip() for line in f.readlines()]
+
+    assert lines[0] == f"INFO:Retrieved {site_name}'s per-month URLs"
+    assert set(lines[1:3]) == set(
+        f"INFO:Retrieved {url}" for url in mock_get_site_images()
+    )
+    assert lines[3] == f"INFO:Finished downloading {n_photos} photos"
+
+
+def test_unsucessful_download(tmp_path):
+    site_name = "canadaojp"
+    save_to = tmp_path
+    n_photos = 0
+    log_filename = "test.log"
+    with pytest.raises(
+        ValueError, match="if n_photos is provided, it must be a positive integer"
+    ):
+        download(site_name, save_to, n_photos, log_filename)
