@@ -7,6 +7,7 @@ from PIL import Image
 
 from phenocam_snow.utils import (
     download,
+    download_from_log,
     get_site_dates,
     get_site_images,
     get_site_months,
@@ -288,3 +289,54 @@ def test_download_with_nonfatal_timeouts(tmp_path, monkeypatch, make_mock_http_g
         f"WARN:request to {url} timed out" for url in mock_get_site_images()
     )
     assert lines[3] == f"WARN:Downloaded only 0 out of {n_photos} requested photos"
+
+
+@pytest.mark.parametrize(
+    ["timeout", "status_code", "has_content"],
+    [(False, 200, True), (True, None, False), (False, 404, False)],
+)
+def test_download_from_log(
+    timeout,
+    status_code,
+    has_content,
+    tmp_path,
+    monkeypatch,
+    make_mock_http_get,
+    get_test_image_as_bytes,
+):
+    save_to = tmp_path
+    source_log = tmp_path / "source.log"
+    log_filename = "out.log"
+    images = ["img1.jpg", "img2.jpg"]
+
+    with open(source_log, "w") as f:
+        for img in images:
+            f.write(f"INFO:Retrieved {img}\n")
+
+    content = get_test_image_as_bytes if has_content else None
+    monkeypatch.setattr(
+        "requests.get", make_mock_http_get(timeout, status_code, content)
+    )
+
+    download_from_log(source_log, save_to, log_filename)
+
+    with open(save_to / log_filename, "r") as f:
+        lines = [line.strip() for line in f.readlines()]
+
+    assert len(lines) == 4
+    assert lines[0] == f"INFO:Read {len(images)} image URLs from {str(source_log)}"
+    if not timeout and status_code == 200 and has_content:
+        assert set(lines[1:3]) == set(f"INFO:Retrieved {url}" for url in images)
+        assert lines[3] == f"INFO:Finished downloading {len(images)} photos"
+    elif timeout:
+        assert set(lines[1:3]) == set(
+            f"WARN:request to {url} timed out" for url in images
+        )
+        assert lines[3] == f"WARN:Downloaded only 0 out of {len(images)} URLs read"
+    elif status_code == 404:
+        assert set(lines[1:3]) == set(
+            f"WARN:request to {url} got {status_code} response" for url in images
+        )
+        assert lines[3] == f"WARN:Downloaded only 0 out of {len(images)} URLs read"
+    else:
+        raise ValueError("unrecognized test case")

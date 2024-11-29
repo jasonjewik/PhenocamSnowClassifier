@@ -188,10 +188,13 @@ def download(
         except requests.exceptions.Timeout:
             write_warn(f"request to {url} timed out")
             continue
-        img = Image.open(BytesIO(resp.content))
-        img.save(save_dir.joinpath(os.path.basename(url)))
-        n_downloaded += 1
-        write_info(f"Retrieved {url}")
+        if resp.status_code == 200:
+            img = Image.open(BytesIO(resp.content))
+            img.save(save_dir.joinpath(os.path.basename(url)))
+            n_downloaded += 1
+            write_info(f"Retrieved {url}")
+        else:
+            write_warn(f"request to {url} got {resp.status_code} response")
         if n_photos is not None and n_downloaded == n_photos:
             break
 
@@ -205,15 +208,19 @@ def download(
     return True
 
 
-def download_from_log(source_log, save_to):
+def download_from_log(
+    source_log: str | Path, save_to: str | Path, log_filename: str | Path | None = None
+) -> None:
     """Downloads images that are listed in a log file.
 
     :param source_log: The log file to get image URLs from.
     :type source_log: str
     :param save_to: The destination directory for downloaded images.
     :type save_to: str
+    :param log_filename: Logs will be emitted to this path, if specified, otherwise logs will be emitted to a file with a
+        name like 'YYYY-mm-DDTHH-MM-SS.log' in the save_to destination directory.
+    :type log_filename: str | Path | None
     """
-    # Check that the directory we're saving to exists
     if type(save_to) is not Path:
         save_dir = Path(save_to)
     else:
@@ -221,11 +228,12 @@ def download_from_log(source_log, save_to):
     if not save_dir.is_dir():
         os.mkdir(save_dir)
 
-    # Configure logger
-    log_filename = f'{datetime.now().isoformat().split(".")[0].replace(":", "-")}.log'
+    log_filename = (
+        log_filename
+        or f'{datetime.now().isoformat().split(".")[0].replace(":", "-")}.log'
+    )
     log_filepath = save_dir.joinpath(log_filename)
 
-    # Read URLs from the source log
     img_urls = []
     with open(source_log, "r") as f:
         for line in f:
@@ -233,26 +241,33 @@ def download_from_log(source_log, save_to):
                 url = line.split(" ")[1].strip()
                 img_urls.append(url)
 
-    # Download images
-    with open(log_filepath, "a") as f:
-        f.write(f"INFO:Read {len(img_urls)} image URLs from {str(source_log)}\n")
-        for url in img_urls:
-            try:
-                resp = requests.get(url, timeout=10)
-            except:
-                f.write("ERROR:Request timed out\n")
-                break
-            if resp.ok:
-                try:
-                    img_fname = url.split("/")[-1]
-                    output_fpath = save_dir.joinpath(img_fname)
-                    img = Image.open(BytesIO(resp.content))
-                    img.save(output_fpath)
-                    f.write(f"INFO:Retrieved {resp.url}\n")
-                except:
-                    f.write(f"WARN:Could not read or save image from {resp.url}\n")
-            else:
-                f.write(f"ERROR:Bad response for {resp.url}\n")
+    log_file = open(log_filepath, "a")
+    write_info = lambda msg: log_file.write(f"INFO:{msg}\n")
+    write_warn = lambda msg: log_file.write(f"WARN:{msg}\n")
+
+    write_info(f"Read {len(img_urls)} image URLs from {str(source_log)}")
+
+    n_downloaded = 0
+    for url in img_urls:
+        try:
+            resp = requests.get(url, timeout=3)
+        except requests.exceptions.Timeout:
+            write_warn(f"request to {url} timed out")
+            continue
+        if resp.status_code == 200:
+            img = Image.open(BytesIO(resp.content))
+            img.save(save_dir.joinpath(os.path.basename(url)))
+            write_info(f"Retrieved {url}")
+            n_downloaded += 1
+        else:
+            write_warn(f"request to {url} got {resp.status_code} response")
+
+    if n_downloaded < len(img_urls):
+        write_warn(f"Downloaded only {n_downloaded} out of {len(img_urls)} URLs read")
+    else:
+        write_info(f"Finished downloading {n_downloaded} photos")
+
+    log_file.close()
 
 
 def label_images_via_subdir(site_name, categories, img_dir, save_to):
