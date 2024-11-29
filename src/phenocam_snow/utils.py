@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 from PIL import Image
+from tqdm import tqdm
 
 
 def get_site_names() -> list[str]:
@@ -158,7 +159,8 @@ def download(
     year_month_pattern = re.compile(year_month_str)
     date_pattern = re.compile(year_month_str + r"\/(?P<date>.+)")
 
-    for month_url in site_month_urls:
+    # TODO:implement multiprocessing to hasten downloads
+    for month_url in tqdm(site_month_urls, desc="months"):
         match = year_month_pattern.match(month_url)
         year, month = match.group("year"), match.group("month")
         try:
@@ -166,7 +168,7 @@ def download(
         except Exception as e:
             write_error(f"Call to get_site_dates failed with {e.__class__.__name__}")
             return False
-        for date_url in site_date_urls:
+        for date_url in tqdm(site_date_urls, desc="dates", leave=False):
             match = date_pattern.match(date_url)
             date = match.group("date")
             try:
