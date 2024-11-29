@@ -188,10 +188,10 @@ def test_successful_download(
     assert lines[3] == f"INFO:Finished downloading {n_photos} photos"
 
 
-def test_unsucessful_download(tmp_path):
+@pytest.mark.parametrize(["n_photos"], [(0,), (-1,), (-100,)])
+def test_download_with_bad_n_photos_arg(n_photos, tmp_path):
     site_name = "canadaojp"
     save_to = tmp_path
-    n_photos = 0
     log_filename = "test.log"
     with pytest.raises(
         ValueError, match="if n_photos is provided, it must be a positive integer"
