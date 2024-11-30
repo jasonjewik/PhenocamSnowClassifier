@@ -14,7 +14,7 @@ from phenocam_snow.utils import (
     get_site_images,
     get_site_months,
     get_site_names,
-    label_images_via_subdir,
+    label_images,
     read_labels,
 )
 
@@ -31,11 +31,6 @@ def get_test_image_as_bytes():
     img = Image.open("tests/data/test_img.jpg")
     img.save(bytes_buffer, format=img.format)
     return bytes_buffer.getvalue()
-
-
-@pytest.fixture
-def get_test_image():
-    return Image.open("tests/data/test_img.jpg")
 
 
 @pytest.fixture
@@ -351,7 +346,7 @@ def test_download_from_log(
         raise ValueError("unrecognized test case")
 
 
-def test_label_images_via_subdir(tmp_path, get_test_image):
+def test_label_images(tmp_path, get_test_image):
     site_name = "canadaojp"
     categories = ["snow", "no_snow", "too_dark"]
     img_dir = tmp_path
@@ -362,9 +357,7 @@ def test_label_images_via_subdir(tmp_path, get_test_image):
         (img_dir / cat).mkdir(exist_ok=True)
         get_test_image.save(img_dir / cat / f"{i}.jpg")
 
-    label_images_via_subdir(
-        site_name, categories, img_dir, save_to, bypass_user_prompt=True
-    )
+    label_images(site_name, categories, img_dir, save_to, bypass_user_prompt=True)
 
     with open(save_to, "r") as f:
         lines = [line.strip() for line in f.readlines()]
@@ -400,7 +393,7 @@ def test_read_labels(tmp_path):
         2.jpg,too_dark
     """
     with open(labels_file, "w") as f:
-        for line in file_content.split("\n"):
+        for line in file_content.splitlines():
             f.write(line.strip() + "\n")
 
     actual_df = read_labels(labels_file)

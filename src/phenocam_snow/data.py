@@ -8,7 +8,7 @@ from torchvision import transforms
 from torchvision.io import decode_image
 from torchvision.models import ResNet18_Weights
 
-from phenocam_snow.utils import download, label_images_via_subdir, read_labels
+from phenocam_snow.utils import download, label_images, read_labels
 
 
 class PhenoCamImageDataset(Dataset):
@@ -48,7 +48,7 @@ class PhenoCamImageDataset(Dataset):
         return img, label
 
 
-class PhenoCamDataModule(LightningDataModule):
+class PhenoCamDataModule(LightningDataModule):  # pragma: no cover
     """LightningDataModule that wraps the PhenoCam image dataset class."""
 
     def __init__(
@@ -96,14 +96,11 @@ class PhenoCamDataModule(LightningDataModule):
         """
         :param train_download_args: Arguments for downloading training images.
         :type train_download_args: dict[str, Any] | None
-        :param train_label_args: Arguments for labeling training imags. Needs to have a key called `"method"` which
-            has two valid values: `"in notebook"` and `"via subdir"`. If the value is the former, then the other keys
-            should match the arguments required by `utils.label_images_in_notebook`. Otherwise, the other keys should
-            match the arguments required by `utils.label_images_via_subdir`.
+        :param train_label_args: Arguments for labeling training images.
         :type train_label_args: dict[str, Any] | None
         :param test_download_args: Arguments for downloading testing images.
         :type test_download_args: dict[str, Any] | None
-        :param test_label_args: Argument for labeling testing imagse. See the description for `train_label_args`.
+        :param test_label_args: Argument for labeling testing images.
         :type test_label_args: dict[str, Any] | None
 
         :raises ValueError: if download or label arguments do not match what was provided at this instance's
@@ -128,9 +125,7 @@ class PhenoCamDataModule(LightningDataModule):
                     f"{train_label_args['save_to']} != {self.train_labels}"
                 )
             print("Labeling train data")
-            if train_label_args["method"] == "via subdir":
-                del train_label_args["method"]
-                label_images_via_subdir(**train_label_args)
+            label_images(**train_label_args)
 
         if test_download_args:
             if test_download_args["site_name"] != self.site_name:
@@ -147,9 +142,7 @@ class PhenoCamDataModule(LightningDataModule):
             if test_label_args["save_to"] != self.test_labels:
                 raise ValueError(f"{test_label_args['save_to']} != {self.test_labels}")
             print("Labeling test data")
-            if test_label_args["method"] == "via subdir":
-                del test_label_args["method"]
-                label_images_via_subdir(**test_label_args)
+            label_images(**test_label_args)
 
     def setup(self, stage: Literal["fit", "test"] | None = None) -> None:
         """

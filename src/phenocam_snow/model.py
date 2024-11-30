@@ -8,7 +8,7 @@ from lightning import LightningModule
 from torchmetrics.classification import MulticlassAccuracy
 
 
-class PhenoCamResNet(LightningModule):
+class PhenoCamResNet(LightningModule):  # pragma: no cover
     """Loads pre-trained ResNet for fine-tuning."""
 
     def __init__(

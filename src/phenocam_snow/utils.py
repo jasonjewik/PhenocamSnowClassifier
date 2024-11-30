@@ -270,7 +270,7 @@ def download_from_log(
     log_file.close()
 
 
-def label_images_via_subdir(
+def label_images(
     site_name: str,
     categories: list[str],
     img_dir: str | Path,
