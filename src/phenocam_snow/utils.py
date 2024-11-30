@@ -293,7 +293,8 @@ def label_images(
     """
     if type(img_dir) is not Path:
         img_dir = Path(img_dir)
-    assert img_dir.is_dir()
+    if not img_dir.is_dir():
+        raise ValueError(f"img_dir {img_dir} is not a directory")
 
     dircats = []
     for cat in categories:
@@ -307,24 +308,24 @@ def label_images(
             "Move images into the appropriate sub-directory then press any key to continue."
         )
 
-    filenames = []
+    data = []
     for dircat in dircats:
-        filenames.extend([os.path.basename(fpath) for fpath in dircat.glob("*.jpg")])
-    df = pd.DataFrame(
-        zip(filenames, categories), columns=["filename", "label"]
-    ).explode("filename")
-    with open(save_to, "w+") as f:
+        for fpath in dircat.glob("*.jpg"):
+            data.append((os.path.basename(fpath), os.path.basename(dircat)))
+    df = pd.DataFrame(data, columns=["filename", "label"])
+    with open(img_dir / save_to, "w+") as f:
         f.write(f"# Site: {site_name}\n")
         f.write("# Categories:\n")
         for i, cat in enumerate(categories):
             f.write(f"# {i}. {cat}\n")
-    df.to_csv(save_to, mode="a", index=False)
+    df.to_csv(img_dir / save_to, mode="a", index=False)
 
     for item in img_dir.glob("*"):
         if item.is_dir():
             for subitem in sorted(item.glob("*")):
                 new_path = Path(subitem.resolve().parent.parent).joinpath(subitem.name)
                 subitem.rename(new_path)
+            item.rmdir()
 
 
 def read_labels(labels_file: str | Path) -> pd.DataFrame:
