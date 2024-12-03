@@ -21,11 +21,6 @@ def main():
     parser.add_argument("model_path", help="The path of the model to use.")
     parser.add_argument("--categories", nargs="+", help="The image categories to use.")
     parser.add_argument(
-        "--url",
-        default=None,
-        help="Provide this if you want to get a prediction for a single online image.",
-    )
-    parser.add_argument(
         "--directory",
         default=None,
         help="Provide this if you want to get predictions for all images in a local directory.",
@@ -36,9 +31,7 @@ def main():
     args = parser.parse_args()
 
     model = load_model_from_file(args.model_path)
-    if args.url:
-        run_model_online(model, args.site_name, args.categories, args.url)
-    elif args.urls:
+    if args.urls:
         run_model_online(model, args.site_name, args.categories, args.urls)
     elif args.directory:
         run_model_offline(model, args.site_name, args.categories, args.directory)
@@ -74,7 +67,7 @@ def classify_online(
         np_img = np.array(img).T
         x = torch.from_numpy(np_img)
         x = data_module.preprocess(x.unsqueeze(0))
-        yhat = model(x)
+        yhat = model(x.to(model.device))
         pred = categories[torch.argmax(yhat, dim=1)]
         return (np_img, pred)
     else:
@@ -103,7 +96,7 @@ def classify_offline(
     :rtype: tuple[np.array, int]
     """
     x = data_module.preprocess(decode_image(img_path).unsqueeze(0))
-    yhat = model(x)
+    yhat = model(x.to(model.device))
     pred = categories[torch.argmax(yhat, dim=1)]
     return pred
 
@@ -146,21 +139,20 @@ def run_model_offline(
     data_module = PhenoCamDataModule(
         "site_name", "train_dir", "train_labels", "test_dir", "test_labels"
     )
-    image_paths = img_dir.glob("*.jpg")
+    image_paths = list(img_dir.glob("*.jpg"))
     predictions = [
         classify_offline(data_module, model, categories, path) for path in image_paths
     ]
 
-    df = pd.DataFrame(
-        zip(image_paths, predictions), columns=["filename", "predicted_label"]
-    )
+    data = [(path, pred) for path, pred in zip(image_paths, predictions)]
+    df = pd.DataFrame(data, columns=["filename", "predicted_label"])
     save_to = img_dir.joinpath("predictions.csv")
     with open(save_to, "w+") as f:
         f.write(f"# Site: {site_name}\n")
         f.write("# Categories:\n")
         for i, cat in enumerate(categories):
             f.write(f"# {i}. {cat}\n")
-    df.to_csv(save_to, mode="a", line_terminator="\n", index=False)
+    df.to_csv(save_to, mode="a", lineterminator="\n", index=False)
     print(f"Results written to {save_to}")
 
     return df
@@ -191,14 +183,15 @@ def run_model_online(
         classify_online(data_module, model, categories, link)[1] for link in links
     ]
 
-    df = pd.DataFrame(zip(links, predictions), columns=["url", "predicted_label"])
+    data = [(link, prediction) for link, prediction in zip(links, predictions)]
+    df = pd.DataFrame(data, columns=["url", "predicted_label"])
     save_to = "predictions.csv"
     with open(save_to, "w+") as f:
         f.write(f"# Site: {site_name}\n")
         f.write("# Categories:\n")
         for i, cat in enumerate(categories):
             f.write(f"# {i}. {cat}\n")
-    df.to_csv(save_to, mode="a", line_terminator="\n", index=False)
+    df.to_csv(save_to, mode="a", lineterminator="\n", index=False)
     print(f"Results written to {save_to}")
 
     return df

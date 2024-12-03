@@ -1,14 +1,15 @@
+import multiprocessing
 import os
 import random
 import re
 from datetime import datetime
 from io import BytesIO
+from multiprocessing.managers import ListProxy
 from pathlib import Path
 
 import pandas as pd
 import requests
 from PIL import Image
-from tqdm import tqdm
 
 
 def get_site_names() -> list[str]:
@@ -108,7 +109,7 @@ def download(
     n_photos: int | None = None,
     log_filename: str | Path | None = None,
 ) -> bool:
-    """Downloads photos taken in some time range at a given site.
+    """Downloads photos at a given site.
 
     :param site_name: The name of the site to download from.
     :type site_name: str
@@ -154,30 +155,31 @@ def download(
 
     write_info(f"Retrieved {site_name}'s per-month URLs")
 
-    image_urls = []
-    year_month_str = rf"https:\/\/phenocam.nau.edu\/webcam\/browse\/{site_name}\/(?P<year>.+)\/(?P<month>.+)"
-    year_month_pattern = re.compile(year_month_str)
-    date_pattern = re.compile(year_month_str + r"\/(?P<date>.+)")
+    total_processes = 8
+    process_manager = multiprocessing.Manager()
+    list_proxy: ListProxy[str] = process_manager.list()
+    print(f"Process manager started {total_processes} processes.")
 
-    # TODO:implement multiprocessing to hasten downloads
-    for month_url in tqdm(site_month_urls, desc="months"):
-        match = year_month_pattern.match(month_url)
-        year, month = match.group("year"), match.group("month")
-        try:
-            site_date_urls = get_site_dates(site_name, year, month)
-        except Exception as e:
-            write_error(f"Call to get_site_dates failed with {e.__class__.__name__}")
+    processes = []
+    for process_id in range(total_processes):
+        months_for_this_process = site_month_urls[process_id::total_processes]
+        process = multiprocessing.Process(
+            target=_download_worker,
+            args=(process_id, site_name, months_for_this_process, list_proxy),
+        )
+        processes.append(process)
+        process.start()
+
+    for current_process in processes:
+        current_process.join()
+
+    image_urls = []
+    for item in list(list_proxy):
+        if item.endswith("jpg"):
+            image_urls.append(item)
+        else:
+            write_error(item)
             return False
-        for date_url in tqdm(site_date_urls, desc="dates", leave=False):
-            match = date_pattern.match(date_url)
-            date = match.group("date")
-            try:
-                image_urls.extend(get_site_images(site_name, year, month, date))
-            except Exception as e:
-                write_error(
-                    f"Call to get_site_images failed with {e.__class__.__name__}"
-                )
-                return False
 
     random.shuffle(image_urls)
     n_downloaded = 0
@@ -206,6 +208,26 @@ def download(
     log_file.close()
 
     return True
+
+
+def _download_worker(
+    process_id: int, site_name: str, my_month_urls: list[str], list_proxy: ListProxy
+) -> None:
+    print(f"Process #{process_id} assigned {len(my_month_urls)} months to download")
+    year_month_str = rf"https:\/\/phenocam.nau.edu\/webcam\/browse\/{site_name}\/(?P<year>.+)\/(?P<month>.+)"
+    year_month_pattern = re.compile(year_month_str)
+    date_pattern = re.compile(year_month_str + r"\/(?P<date>.+)")
+    try:
+        for month_url in my_month_urls:
+            match = year_month_pattern.match(month_url)
+            year, month = match.group("year"), match.group("month")
+            site_date_urls = get_site_dates(site_name, year, month)
+            for date_url in site_date_urls:
+                match = date_pattern.match(date_url)
+                date = match.group("date")
+                list_proxy.extend(get_site_images(site_name, year, month, date))
+    except Exception as e:
+        list_proxy.extend(str(e))
 
 
 def download_from_log(
@@ -313,12 +335,12 @@ def label_images(
         for fpath in dircat.glob("*.jpg"):
             data.append((os.path.basename(fpath), os.path.basename(dircat)))
     df = pd.DataFrame(data, columns=["filename", "label"])
-    with open(img_dir / save_to, "w+") as f:
+    with open(save_to, "w+") as f:
         f.write(f"# Site: {site_name}\n")
         f.write("# Categories:\n")
         for i, cat in enumerate(categories):
             f.write(f"# {i}. {cat}\n")
-    df.to_csv(img_dir / save_to, mode="a", index=False)
+    df.to_csv(save_to, mode="a", index=False)
 
     for item in img_dir.glob("*"):
         if item.is_dir():

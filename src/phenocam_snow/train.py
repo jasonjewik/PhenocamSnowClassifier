@@ -1,10 +1,10 @@
+import os
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
 import lightning as L
-import torch
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers import TensorBoardLogger
 
@@ -24,6 +24,7 @@ def main():
     )
     parser.add_argument("--learning_rate", type=float, default=5e-4)
     parser.add_argument("--weight_decay", type=float, default=0.01)
+    parser.add_argument("--max_epochs", type=int, default=10)
     parser.add_argument(
         "--new",
         action="store_true",
@@ -54,6 +55,7 @@ def main():
             args.model,
             args.learning_rate,
             args.weight_decay,
+            args.max_epochs,
             args.site_name,
             args.n_train,
             args.n_test,
@@ -64,6 +66,7 @@ def main():
             args.model,
             args.learning_rate,
             args.weight_decay,
+            args.max_epochs,
             args.site_name,
             args.train_dir,
             args.test_dir,
@@ -79,6 +82,7 @@ def train_model_with_new_data(
     ],
     learning_rate: float,
     weight_decay: float,
+    max_epochs: int,
     site_name: str,
     n_train: int,
     n_test: int,
@@ -92,6 +96,8 @@ def train_model_with_new_data(
     :type learning_rate: float
     :param weight_decay: The weight decay to use.
     :type weight_decay: float
+    :param max_epochs: The max number of training epochs.
+    :type max_epochs: int
     :param site_name: The name of the PhenoCam site you want.
     :type site_name: str
     :param n_train: The number of training images to use.
@@ -144,6 +150,7 @@ def train_model_with_new_data(
         len(classes),
         learning_rate,
         weight_decay,
+        max_epochs,
     )
 
 
@@ -153,6 +160,7 @@ def train_model_with_existing_data(
     ],
     learning_rate: float,
     weight_decay: float,
+    max_epochs: int,
     site_name: str,
     train_dir: str | Path,
     test_dir: str | Path,
@@ -166,6 +174,8 @@ def train_model_with_existing_data(
     :type learning_rate: float
     :param weight_decay: The weight decay to use.
     :type weight_decay: float
+    :param max_epochs: The max number of training epochs.
+    :type max_epochs: int
     :param site_name: The name of the PhenoCam site you want.
     :type site_name: str
     :param train_dir: The path to the training images directory.
@@ -198,6 +208,7 @@ def train_model_with_existing_data(
         len(classes),
         learning_rate,
         weight_decay,
+        max_epochs,
     )
 
 
@@ -210,19 +221,18 @@ def _fit_and_eval_model(
     n_classes: int,
     learning_rate: float,
     weight_decay: float,
+    max_epochs: int,
 ) -> PhenoCamResNet:
     """Helper function for above public methods. Returns the best model."""
     data_module.setup(stage="fit")
     model = PhenoCamResNet(resnet_variant, n_classes, learning_rate, weight_decay)
     logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"{site_name}_lightning_logs")
     callbacks = [EarlyStopping(monitor="val_loss", mode="min", min_delta=1e-8)]
-    accelerator = "gpu" if torch.cuda.is_available() else None
     trainer = L.Trainer(
         logger=logger,
         callbacks=callbacks,
-        max_epochs=50,
+        max_epochs=max_epochs,
         log_every_n_steps=3,
-        accelerator=accelerator,
         precision=16,
     )
     trainer.fit(model, data_module)

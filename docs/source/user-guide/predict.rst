@@ -1,8 +1,8 @@
 Classifying New Images
 ======================
 Models produced by PhenoCamSnow can be used to generate predictions for all
-images in a local directory, or to generate a prediction for a single image as
-pointed to by URL. 
+images in a local directory, or to generate a prediction for images pointed to
+by their URLs. 
 
 Local Prediction
 ----------------
@@ -16,15 +16,13 @@ following command.
     python -m phenocam_snow.predict \
         canadaojp \
         canadaojp_lightning_logs/version_0/checkpoints/epoch=12-step=78.ckpt \
-        resnet18 \
-        --categories snow no_snow too_dark
-        --directory canadaojp_test
+        --categories snow no_snow too_dark \
+        --directory 'canadaojp/test'
 
 The file path provided in the third line is printed by the model training
 script. It is also saved in a file called ``best_model_paths.csv``. Ensure that
 the categories provided are the same name and in the same order as provided
-during training. Similarly, ensure that the ResNet variant specified is the
-same as in training.
+during training.
 
 The program will then print out its predictions to a CSV file that looks like
 this:
@@ -37,43 +35,44 @@ this:
     # 0. snow
     # 1. no_snow
     # 2. too_dark
-    timestamp,label
-    2016-04-01 17:29:59,snow
-    2017-11-13 13:59:59,snow
-    2019-01-24 16:59:59,snow
-    2016-04-09 20:29:59,snow
-    2020-02-26 09:59:59,snow
-    2016-12-21 11:29:59,snow
-    2017-03-19 11:59:59,snow
-    2020-10-29 13:29:59,snow
-    2018-03-01 19:00:00,snow
-    2016-04-24 07:29:59,no_snow
-    2016-05-14 04:00:00,no_snow
-    2019-09-25 09:30:00,no_snow
-    2018-07-20 17:00:00,no_snow
-    2017-05-27 16:29:59,no_snow
-    2016-08-28 20:29:59,no_snow
-    2017-06-06 09:30:00,no_snow
-    2017-09-02 08:29:59,no_snow
-    2019-09-09 16:00:00,no_snow
-    2019-01-07 01:29:59,too_dark
-    2020-01-07 23:30:00,too_dark
-    2017-09-05 01:59:59,too_dark
-    2018-07-24 01:30:00,too_dark
-    2017-11-21 18:59:59,too_dark
-    2020-01-01 03:29:59,too_dark
-    2019-02-01 05:29:59,too_dark
-    2020-10-14 06:30:00,too_dark
-    2020-05-31 02:59:59,too_dark
-    2018-12-22 02:29:59,too_dark
-    2019-05-01 04:30:00,too_dark
-    2020-07-22 04:00:00,too_dark
+    filename,label
+    canadaojp_2020_04_25_052959.jpg,snow
+    canadaojp_2019_11_14_073000.jpg,snow
+    canadaojp_2020_01_08_155959.jpg,snow
+    canadaojp_2018_10_06_182959.jpg,no_snow
+    canadaojp_2019_05_30_040000.jpg,no_snow
+    canadaojp_2018_10_23_142959.jpg,no_snow
+    canadaojp_2018_04_27_083000.jpg,no_snow
+    canadaojp_2020_08_05_100000.jpg,no_snow
+    canadaojp_2020_07_13_215959.jpg,no_snow
+    canadaojp_2020_04_26_045959.jpg,no_snow
+    canadaojp_2020_07_01_205959.jpg,no_snow
+    canadaojp_2018_06_01_082959.jpg,no_snow
+    canadaojp_2020_05_30_065959.jpg,no_snow
+    canadaojp_2020_06_11_033000.jpg,no_snow
+    canadaojp_2019_05_10_112959.jpg,no_snow
+    canadaojp_2020_04_09_232959.jpg,too_dark
+    canadaojp_2018_10_31_182959.jpg,too_dark
+    canadaojp_2019_08_31_000000.jpg,too_dark
+    canadaojp_2020_02_01_075959.jpg,too_dark
+    canadaojp_2018_12_18_185959.jpg,too_dark
+    canadaojp_2020_03_05_012959.jpg,too_dark
+    canadaojp_2020_04_22_035959.jpg,too_dark
+    canadaojp_2020_05_02_032959.jpg,too_dark
+    canadaojp_2018_12_29_052959.jpg,too_dark
+    canadaojp_2020_04_24_025959.jpg,too_dark
+    canadaojp_2020_04_11_232959.jpg,too_dark
+    canadaojp_2018_11_20_065959.jpg,too_dark
+    canadaojp_2019_02_25_192959.jpg,too_dark
+    canadaojp_2020_03_30_232959.jpg,too_dark
+    canadaojp_2018_06_15_003000.jpg,too_dark
+
 
 Online Prediction
 -----------------
 
-PhenoCamSnow is also capable of generating a prediction for a single online
-image, as pointed to by a URL. For example, using canadaojp again:
+PhenoCamSnow is also capable of generating a prediction for online images as
+as pointed to by their URLs. For example, using canadaojp again:
 
 .. code-block:: bash
     :linenos:
@@ -83,9 +82,22 @@ image, as pointed to by a URL. For example, using canadaojp again:
         canadaojp_lightning_logs/version_0/checkpoints/epoch=12-step=78.ckpt \
         resnet18 \
         --categories snow no_snow too_dark
-        --url https://phenocam.nau.edu/data/latest/canadaojp.jpg
+        --urls urls.txt
 
-The program will print its prediction to the console. E.g., ``no_snow``.
+Here, ``urls.txt`` is a file containing one image URL per line. The program
+will write its predictions to a CSV file, formatted similarly to the one shown
+for offline prediction.
+
+Getting Help
+------------
+
+You can see a help message displayed by running:
+
+.. code-block:: bash
+    :linenos:
+
+    python -m phenocam_snow.predict --help
+
 
 If you have further questions, please raise an
 `issue on the GitHub repository <https://github.com/jasonjewik/PhenoCamSnow/issues/new/choose>`_.

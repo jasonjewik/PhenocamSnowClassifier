@@ -18,9 +18,6 @@ The following code snippets show how to train and evaluate a model on classifyin
 ```console
 python -m phenocam_snow.train \
    canadaojp \
-   --model resnet18 \
-   --learning_rate 5e-4 \
-   --weight_decay 0.01 \
    --new \
    --n_train 120 \
    --n_test 30 \
@@ -31,10 +28,9 @@ This will print out the file path of the best model, which can be substituted in
 ```console
 python -m phenocam_snow.predict \
    canadaojp \
-   [path/to/best_model.ckpt] \
-   resnet18 \
-   --categories snow no_snow too_dark
-   --url https://phenocam.nau.edu/data/latest/canadaojp.jpg
+   canadaojp_lightning_logs/version_0/checkpoints/epoch=12-step=78.ckpt \
+   --categories snow no_snow too_dark \
+   --directory 'canadaojp/test'
 ```
 
 Advanced usage details can be found in the [documentation](http://phenocamsnow.readthedocs.io/).

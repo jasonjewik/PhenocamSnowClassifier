@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 from lightning import LightningModule
-from torchmetrics.classification import MulticlassAccuracy
+from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
 
 
 class PhenoCamResNet(LightningModule):  # pragma: no cover
@@ -52,7 +52,10 @@ class PhenoCamResNet(LightningModule):  # pragma: no cover
             param.requires_grad = False
         n_filters = backbone.fc.in_features
         self.classifier = nn.Linear(n_filters, n_classes)
-        self.metric = MulticlassAccuracy(num_classes=n_classes)
+        self.metrics = {
+            "acc": MulticlassAccuracy(num_classes=n_classes),
+            "f1": MulticlassF1Score(num_classes=n_classes),
+        }
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.feature_extractor(x)
@@ -65,9 +68,11 @@ class PhenoCamResNet(LightningModule):  # pragma: no cover
         yhat = self(x)
         loss = F.cross_entropy(yhat, y)
         preds = torch.argmax(yhat, dim=1)
-        acc = self.metric(preds, y)
+        output_dict = {"train_loss": loss}
+        for name, fn in self.metrics.items():
+            output_dict[f"train_{name}"] = fn.to(preds.device)(preds, y)
         self.log_dict(
-            {"train_loss": loss, "train_acc": acc},
+            output_dict,
             prog_bar=True,
             on_step=True,
             on_epoch=False,
@@ -75,16 +80,18 @@ class PhenoCamResNet(LightningModule):  # pragma: no cover
         return loss
 
     def evaluate(
-        self, batch: torch.Tensor, stage: Literal["fit", "test"] | None = None
+        self, batch: torch.Tensor, stage: Literal["val", "test"] | None = None
     ) -> None:
         x, y = batch
         yhat = self(x)
         loss = F.cross_entropy(yhat, y)
         preds = torch.argmax(yhat, dim=1)
-        acc = self.metric(preds, y)
+        output_dict = {f"{stage}_loss": loss}
+        for name, fn in self.metrics.items():
+            output_dict[f"{stage}_{name}"] = fn.to(preds.device)(preds, y)
         if stage:
             self.log_dict(
-                {f"{stage}_loss": loss, f"{stage}_acc": acc},
+                output_dict,
                 prog_bar=True,
                 on_step=False,
                 on_epoch=True,
