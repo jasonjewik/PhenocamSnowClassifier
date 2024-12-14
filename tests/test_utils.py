@@ -111,8 +111,7 @@ def test_non_200_get_site_months(status_code, make_mock_http_get, monkeypatch):
 
 def test_200_get_site_dates(make_mock_http_get, monkeypatch):
     site_name = "canadaojp"
-    year = "2024"
-    month = "01"
+    year, month = "2024", "01"
     with open(f"tests/data/get_site_dates/{site_name}{year}{month}.html", "r") as f:
         html_content = f.read()
     mock_http_get = make_mock_http_get(text=html_content)
@@ -140,32 +139,36 @@ def test_non_200_get_site_dates(status_code, make_mock_http_get, monkeypatch):
         get_site_dates(site_name="foobar", year="2024", month="01")
 
 
-def test_successful_get_site_images():
-    actual_site_images = get_site_images(
-        site_name="canadaojp", year="2024", month="01", date="01"
-    )
-    with open("tests/data/site_images.csv", "r") as f:
+def test_200_get_site_images(make_mock_http_get, monkeypatch):
+    site_name = "canadaojp"
+    year, month, date = "2024", "01", "01"
+    with open(
+        f"tests/data/get_site_images/{site_name}{year}{month}{date}.html", "r"
+    ) as f:
+        html_content = f.read()
+    mock_http_get = make_mock_http_get(text=html_content)
+    monkeypatch.setattr("requests.get", mock_http_get)
+
+    actual_site_images = get_site_images(site_name, year, month, date)
+
+    with open("tests/data/get_site_images/site_images.csv", "r") as f:
         expected_site_images = f.readlines()[0].split(",")
     assert actual_site_images == expected_site_images
 
 
-@pytest.mark.parametrize(
-    ["error_type", "match"],
-    [
-        (requests.exceptions.Timeout, None),
-        (RuntimeError, r"did not get 200 response from .+"),
-    ],
-)
-def test_unsuccessful_get_site_images(
-    error_type, match, make_mock_http_get, monkeypatch
-):
-    if error_type == requests.exceptions.Timeout:
-        mock_http_get = make_mock_http_get(True, None)
-    elif error_type == RuntimeError:
-        mock_http_get = make_mock_http_get(False, 404)
+def test_timeout_get_site_images(make_mock_http_get, monkeypatch):
+    mock_http_get = make_mock_http_get(raises_timeout=True)
     monkeypatch.setattr("requests.get", mock_http_get)
-    with pytest.raises(error_type, match=match):
-        get_site_images(site_name="does_not_matter", year="1970", month="01", date="01")
+    with pytest.raises(requests.exceptions.Timeout):
+        get_site_images(site_name="foobar", year="2024", month="01", date="01")
+
+
+@pytest.mark.parametrize("status_code", [(404,), (500,)])
+def test_non_200_get_site_images(status_code, make_mock_http_get, monkeypatch):
+    mock_http_get = make_mock_http_get(status_code=status_code)
+    monkeypatch.setattr("requests.get", mock_http_get)
+    with pytest.raises(RuntimeError, match=r"did not get 200 response from .+"):
+        get_site_images(site_name="foobar", year="2024", month="01", date="01")
 
 
 def test_successful_download(
