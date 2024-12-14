@@ -1,0 +1,235 @@
+/* over-all text properties */
+body {
+  font-family: "Lato", sans-serif;
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.3;
+  min-height: 100vh; }
+
+.heading-primary {
+  backface-visibility: hidden;
+  margin-bottom: 1rem; }
+  .heading-primary--main {
+    display: block;
+    font-size: 3rem;
+    font-weight: 400; }
+  .heading-primary--sub {
+    text-transform: uppercase;
+    font-size: 1.5rem;
+    font-weight: 700; }
+
+.heading-logo {
+  backface-visibility: hidden; }
+  .heading-logo--primary {
+    font-size: 2.5rem;
+    font-weight: 400;
+    letter-spacing: 1px; }
+  .heading-logo--sub {
+    display: block;
+    font-size: 1rem;
+    font-weight: 400;
+    font-stretch: extra-condensed;
+    text-transform: uppercase; }
+
+.u-logo-green {
+  color: #88d317; }
+
+.u-logo-gray {
+  color: #535353; }
+
+#thumbs .selected {
+  border-width: 2px;
+  border-color: #ff0000;
+  border-style: solid; }
+
+#thumbs p {
+  text-align: center;
+  margin: 0;
+  padding: 0; }
+
+#selectedimg {
+  margin: 0px; }
+
+/**** Sidebar ****/
+#layer_switcher_control {
+  font-size: 8pt; }
+
+#layer_switcher_control .olButton {
+  margin-right: .5em;
+  margin-bottom: .5em; }
+
+#layer_switcher_control .labelSpan {
+  margin-top: 2px; }
+
+/**** Map *********/
+.olControlMousePosition {
+  float: right;
+  padding: 0.25em;
+  margin: 0 0 1.6em 0;
+  /* font-weight: bold; */
+  font-family: "Arial", SanSerif;
+  line-height: 1.3em;
+  /* color: #ffffff; */
+  background-color: #eeeeee; }
+
+.olControlScaleLine {
+  margin: 0 0 1.6em 0;
+  background-color: #eeeeee; }
+
+.ui-state-active {
+  display: none; }
+
+#roimasklist {
+  /* border: 5px solid red; */
+  border-top: thick solid #cccccc;
+  margin: 20px 0px 10px 0px;
+  padding: 0px; }
+
+#roimasklist a {
+  color: blue; }
+
+#roimasklist ul {
+  list-style: none;
+  padding: 0px; }
+
+.roimaskentry {
+  border-top: thick solid #cccccc;
+  padding: 5px;
+  margin: 0px 0px 10px 0px; }
+
+.roimaskinfo ul {
+  /* border: 1px solid #ff00ff; */
+  width: 400px;
+  height: 250px;
+  padding: 5px; }
+
+.roimaskinfo li {
+  list-style: none;
+  padding: 2px; }
+
+.roimaskinfo a {
+  color: blue; }
+
+.roimaskoverlay img {
+  border: 2px solid black;
+  height: 250px;
+  position: absolute;
+  margin: -248px 0px 5px 470px; }
+
+#roitsimage {
+  border-top: thick solid #cccccc;
+  /* margin: 1em; */ }
+
+#roitsimage img {
+  border: 1px solid black; }
+
+.hidden {
+  display: none; }
+
+#graphdiv {
+  border: 1px solid black;
+  background-color: #ffffff;
+  width: 802px;
+  height: 302px; }
+
+#roimarkswitcher li {
+  list-style-type: none;
+  margin-left: 35px; }
+
+#browse_siteinfo h3, h4 {
+  margin: 0 0 0 10pt; }
+
+i.material-icons {
+  position: relative;
+  top: 2pt;
+  color: #888888;
+  font-size: 13pt;
+  margin: 0pt; }
+
+#monthsummary {
+  font-size: 8pt;
+  text-align: center;
+  padding: 0pt 0pt 0pt 1.5rem;
+  display: inline-block; }
+
+#monthsummary table {
+  horizontal-align: center;
+  width: auto;
+  border-collapse: collapse;
+  border-spacing: 0pt; }
+
+#monthsummary th {
+  /* border: none; */
+  border: solid 2px black;
+  background: #808050;
+  color: white; }
+
+#monthsummary tr {
+  background: #cccccc;
+  padding: 0px;
+  margin: 0px;
+  border: none; }
+
+#monthsummary td {
+  width: 123px;
+  height: 36px;
+  border: solid 1px black;
+  padding-top: 0pt;
+  padding-right: 0pt;
+  padding-bottom: 0pt;
+  padding-left: 0pt;
+  margin: 0pt; }
+
+#monthsummary a {
+  padding: 0pt 0pt 10pt 0pt;
+  margin: 0pt; }
+
+#monthsummary img {
+  padding: 0pt;
+  margin: 0pt;
+  border-top: solid 1px black;
+  border-bottom: solid 1px black;
+  width: 122px; }
+
+.calday {
+  padding: 0pt;
+  margin: 0pt;
+  width: 122px;
+  height: 128px; }
+
+.calday img {
+  width: 140px;
+  border: solid 1px black; }
+
+.monthday {
+  background: #808050;
+  color: white;
+  width: 28pt;
+  height: 28pt;
+  float: left;
+  font-family: Helvetica;
+  font-size: 13pt;
+  padding: 0pt 8pt 8pt 4pt;
+  border: solid 1px black;
+  vertical-align: middle; }
+
+.imagecount {
+  background: #cccccc;
+  font-size: 9pt;
+  height: 28pt;
+  padding: 5pt 0pt 0pt 0pt;
+  text-align: middle; }
+
+.doy {
+  font-size: 9pt;
+  margin: -5pt 0 0 0; }
+
+/* a:link {  */
+/*      text-decoration: none; */
+/*      color: #403820; */
+/* } */
+/* a:visited { */
+/*      text-decoration: none; */
+/*      color: #606020; */
+/* } */
+/******* Header/navigation ******/

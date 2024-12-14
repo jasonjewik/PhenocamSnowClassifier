@@ -23,6 +23,7 @@ from phenocam_snow.utils import (
 class MockHttpResponse:
     status_code: int
     content: bytes | None
+    text: str | None
 
 
 @pytest.fixture
@@ -36,94 +37,107 @@ def get_test_image_as_bytes():
 @pytest.fixture
 def make_mock_http_get():
     def _make_mock_http_get(
-        raises_timeout: bool, status_code: int, content: bytes | None = None
+        raises_timeout: bool = False,
+        status_code: int = 200,
+        content: bytes | None = None,
+        text: bytes | None = None,
     ):
         def mock_http_get(*args, **kwargs):
             if raises_timeout:
                 raise requests.exceptions.Timeout()
-            return MockHttpResponse(status_code, content)
+            return MockHttpResponse(status_code, content, text)
 
         return mock_http_get
 
     return _make_mock_http_get
 
 
-def test_successful_get_site_names():
+def test_200_get_site_names(make_mock_http_get, monkeypatch):
+    with open("tests/data/get_site_names/site_table.html", "r") as f:
+        html_content = f.read()
+    mock_http_get = make_mock_http_get(text=html_content)
+    monkeypatch.setattr("requests.get", mock_http_get)
+
     actual_site_names = get_site_names()
-    with open("tests/data/site_names.csv", "r") as f:
+
+    with open("tests/data/get_site_names/site_names.csv", "r") as f:
         expected_site_names = f.readlines()[0].split(",")
     assert actual_site_names == expected_site_names
 
 
-@pytest.mark.parametrize(
-    ["error_type", "match"],
-    [
-        (requests.exceptions.Timeout, None),
-        (RuntimeError, r"did not get 200 response from .+"),
-    ],
-)
-def test_unsuccessful_get_site_names(
-    error_type, match, make_mock_http_get, monkeypatch
-):
-    if error_type == requests.exceptions.Timeout:
-        mock_http_get = make_mock_http_get(True, None)
-    elif error_type == RuntimeError:
-        mock_http_get = make_mock_http_get(False, 404)
+def test_timeout_get_site_names(make_mock_http_get, monkeypatch):
+    mock_http_get = make_mock_http_get(raises_timeout=True)
     monkeypatch.setattr("requests.get", mock_http_get)
-    with pytest.raises(error_type, match=match):
+    with pytest.raises(requests.exceptions.Timeout):
         get_site_names()
 
 
-def test_successful_get_site_months():
-    actual_site_months = get_site_months(site_name="canadaojp")
-    with open("tests/data/site_months.csv", "r") as f:
+@pytest.mark.parametrize("status_code", [(404,), (500,)])
+def test_non_200_get_site_names(status_code, make_mock_http_get, monkeypatch):
+    mock_http_get = make_mock_http_get(status_code=status_code)
+    monkeypatch.setattr("requests.get", mock_http_get)
+    with pytest.raises(RuntimeError, match=r"did not get 200 response from .+"):
+        get_site_names()
+
+
+def test_200_get_site_months(make_mock_http_get, monkeypatch):
+    site_name = "canadaojp"
+    with open(f"tests/data/get_site_months/{site_name}.html", "r") as f:
+        html_content = f.read()
+    mock_http_get = make_mock_http_get(text=html_content)
+    monkeypatch.setattr("requests.get", mock_http_get)
+
+    actual_site_months = get_site_months(site_name)
+
+    with open(f"tests/data/get_site_months/site_months.csv", "r") as f:
         expected_site_months = f.readlines()[0].split(",")
     assert actual_site_months == expected_site_months
 
 
-@pytest.mark.parametrize(
-    ["error_type", "match"],
-    [
-        (requests.exceptions.Timeout, None),
-        (RuntimeError, r"did not get 200 response from .+"),
-    ],
-)
-def test_unsuccessful_get_site_months(
-    error_type, match, make_mock_http_get, monkeypatch
-):
-    if error_type == requests.exceptions.Timeout:
-        mock_http_get = make_mock_http_get(True, None)
-    elif error_type == RuntimeError:
-        mock_http_get = make_mock_http_get(False, 404)
+def test_timeout_get_site_months(make_mock_http_get, monkeypatch):
+    mock_http_get = make_mock_http_get(raises_timeout=True)
     monkeypatch.setattr("requests.get", mock_http_get)
-    with pytest.raises(error_type, match=match):
-        get_site_months(site_name="doesn't matter")
+    with pytest.raises(requests.exceptions.Timeout):
+        get_site_months(site_name="foobar")
 
 
-def test_successful_get_site_dates():
-    actual_site_dates = get_site_dates(site_name="canadaojp", year="2024", month="01")
-    with open("tests/data/site_dates.csv", "r") as f:
+@pytest.mark.parametrize("status_code", [(404,), (500,)])
+def test_non_200_get_site_months(status_code, make_mock_http_get, monkeypatch):
+    mock_http_get = make_mock_http_get(status_code=status_code)
+    monkeypatch.setattr("requests.get", mock_http_get)
+    with pytest.raises(RuntimeError, match=r"did not get 200 response from .+"):
+        get_site_months(site_name="foobar")
+
+
+def test_200_get_site_dates(make_mock_http_get, monkeypatch):
+    site_name = "canadaojp"
+    year = "2024"
+    month = "01"
+    with open(f"tests/data/get_site_dates/{site_name}{year}{month}.html", "r") as f:
+        html_content = f.read()
+    mock_http_get = make_mock_http_get(text=html_content)
+    monkeypatch.setattr("requests.get", mock_http_get)
+
+    actual_site_dates = get_site_dates(site_name, year, month)
+
+    with open(f"tests/data/get_site_dates/site_dates.csv", "r") as f:
         expected_site_dates = f.readlines()[0].split(",")
     assert actual_site_dates == expected_site_dates
 
 
-@pytest.mark.parametrize(
-    ["error_type", "match"],
-    [
-        (requests.exceptions.Timeout, None),
-        (RuntimeError, r"did not get 200 response from .+"),
-    ],
-)
-def test_unsuccessful_get_site_dates(
-    error_type, match, make_mock_http_get, monkeypatch
-):
-    if error_type == requests.exceptions.Timeout:
-        mock_http_get = make_mock_http_get(True, None)
-    elif error_type == RuntimeError:
-        mock_http_get = make_mock_http_get(False, 404)
+def test_timeout_get_site_dates(make_mock_http_get, monkeypatch):
+    mock_http_get = make_mock_http_get(raises_timeout=True)
     monkeypatch.setattr("requests.get", mock_http_get)
-    with pytest.raises(error_type, match=match):
-        get_site_dates(site_name="does_not_matter", year="1970", month="01")
+    with pytest.raises(requests.exceptions.Timeout):
+        get_site_dates(site_name="foobar", year="2024", month="01")
+
+
+@pytest.mark.parametrize("status_code", [(404,), (500,)])
+def test_non_200_get_site_dates(status_code, make_mock_http_get, monkeypatch):
+    mock_http_get = make_mock_http_get(status_code=status_code)
+    monkeypatch.setattr("requests.get", mock_http_get)
+    with pytest.raises(RuntimeError, match=r"did not get 200 response from .+"):
+        get_site_dates(site_name="foobar", year="2024", month="01")
 
 
 def test_successful_get_site_images():

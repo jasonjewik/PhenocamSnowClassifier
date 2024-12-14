@@ -25,7 +25,7 @@ def get_site_names() -> list[str]:
     :raises RuntimeError: if non-200 response is received
     """
     url = "https://phenocam.nau.edu/webcam/network/table/"
-    pattern = re.compile(r'"\/webcam\/sites\/(.+)/"')
+    pattern = re.compile(r'\/webcam\/sites\/(.+)/"')
     resp = requests.get(url, timeout=3)
     if resp.status_code != 200:
         raise RuntimeError(f"did not get 200 response from {url}")
@@ -45,7 +45,7 @@ def get_site_months(site_name: str) -> list[str]:
     :raises RuntimeError: if non-200 response is received
     """
     url = f"https://phenocam.nau.edu/webcam/browse/{site_name}"
-    pattern = re.compile(rf'"\/webcam\/browse\/{site_name}(\/.+\/.+)"')
+    pattern = re.compile(rf'\/webcam\/browse\/{site_name}(\/.+\/.+)"')
     resp = requests.get(url, timeout=3)
     if resp.status_code != 200:
         raise RuntimeError(f"did not get 200 response from {url}")
@@ -69,7 +69,7 @@ def get_site_dates(site_name: str, year: str, month: str) -> list[str]:
     :raises RuntimeError: if non-200 response is received
     """
     url = f"https://phenocam.nau.edu/webcam/browse/{site_name}/{year}/{month}"
-    pattern = re.compile(rf'"\/webcam\/browse\/{site_name}\/.+\/.+(\/.+)\/"')
+    pattern = re.compile(rf'\/webcam\/browse\/{site_name}\/.+\/.+(\/.+)\/"')
     resp = requests.get(url, timeout=3)
     if resp.status_code != 200:
         raise RuntimeError(f"did not get 200 response from {url}")
