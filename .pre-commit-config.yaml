@@ -1,0 +1,36 @@
+fail_fast: true # set to false to have pre-commit continue running hooks after the first failure.
+
+default_stages: [pre-commit]
+
+default_language_version:
+  python: python3.10
+
+repos:
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        name: format-imports
+        description: "Format Python sources imports using autoflake"
+        language: python
+        types: [ python ]
+        args:
+          - "--in-place"
+          - "--expand-star-imports"
+          - "--remove-all-unused-imports"
+
+  - repo: local
+    hooks:
+      - id: format
+        name: format
+        entry: make format
+        description: "Format Python sources using isort and black"
+        language: python
+        types: [ python ]
+
+      # - id: lint
+      #   name: lint
+      #   entry: make lint
+      #   description: "Format Python sources using isort, black, pflake8 and mypy"
+      #   language: python
+      #   types: [ python ]

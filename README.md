@@ -5,26 +5,19 @@
 
 **PhenoCamSnow** is a Python package for quickly building deep learning models to classify [PhenoCam images](https://phenocam.sr.unh.edu/).
 
-## Installation
+## Quickstart
 
-PhenoCamSnow supports Python 3.7+ and can be installed via pip:
+PhenoCamSnow requires Python 3.10+ and can be installed via pip:
 
 ```console
 pip install phenocam-snow
 ```
-
-Optional dependencies for development and documentation purposes can be installed by specifying the extras `[dev]` and `[docs]`, repsectively. 
-
-## Example Usage
 
 The following code snippets show how to train and evaluate a model on classifying images from the canadaojp site into "snow", "no snow", and "too dark".
 
 ```console
 python -m phenocam_snow.train \
    canadaojp \
-   --model resnet18 \
-   --learning_rate 5e-4 \
-   --weight_decay 0.01 \
    --new \
    --n_train 120 \
    --n_test 30 \
@@ -35,13 +28,18 @@ This will print out the file path of the best model, which can be substituted in
 ```console
 python -m phenocam_snow.predict \
    canadaojp \
-   [path/to/best_model.ckpt] \
-   resnet18 \
-   --categories snow no_snow too_dark
-   --url https://phenocam.nau.edu/data/latest/canadaojp.jpg
+   canadaojp_lightning_logs/version_0/checkpoints/epoch=12-step=78.ckpt \
+   --categories snow no_snow too_dark \
+   --directory 'canadaojp/test'
 ```
 
 Advanced usage details can be found in the [documentation](http://phenocamsnow.readthedocs.io/).
+
+## Development
+
+PhenoCamSnow uses [Poetry](https://python-poetry.org) for package management. After cloning the repository to your local development environment, install the dependencies with `poetry install`. You can find the location of the virtual environment to set your IDE's Python executable path with `poetry env info`.
+
+Install the pre-commit hooks with `make install-git-hooks`.
 
 ## Citation
 
