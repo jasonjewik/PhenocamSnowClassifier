@@ -161,33 +161,3 @@ def label_images(
                 new_path = Path(subitem.resolve().parent.parent).joinpath(subitem.name)
                 subitem.rename(new_path)
             item.rmdir()
-
-
-def read_labels(labels_file: str | Path) -> pd.DataFrame:
-    """Reads image-label pairs.
-
-    :param labels_file: The path to the labels file.
-    :type labels_file: str | Path
-
-    :return: A pandas DataFrame with "filename" (str), "label" (str), and "int_label" (int) columns.
-    :rtype: pd.DataFrame
-    """
-    labels_dict = {}
-    with open(labels_file, "r") as f:
-        start_reading = False
-        for line in f:
-            if start_reading:
-                if line[0] != "#":
-                    break
-                else:
-                    int_label, str_label = line[1:].split(". ")
-                    int_label = int(int_label)
-                    str_label = str_label.strip()
-                    labels_dict[str_label] = int_label
-            if line == "# Categories:\n":
-                start_reading = True
-
-    df = pd.read_csv(labels_file, comment="#")
-    df["int_label"] = [labels_dict[x] for x in df["label"]]
-
-    return df

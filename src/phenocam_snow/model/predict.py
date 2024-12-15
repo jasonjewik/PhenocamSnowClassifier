@@ -9,8 +9,8 @@ import torch
 from PIL import Image
 from torchvision.io import decode_image
 
-from phenocam_snow.data import PhenoCamDataModule
-from phenocam_snow.model import PhenoCamResNet
+from phenocam_snow.data.data_module import PhenoCamDataModule
+from phenocam_snow.model.classifier import PhenoCamClassifier
 
 
 def main():
@@ -39,7 +39,7 @@ def main():
 
 def classify_online(
     data_module: PhenoCamDataModule,
-    model: PhenoCamResNet,
+    model: PhenoCamClassifier,
     categories: list[str],
     img_url: str,
 ) -> tuple[np.array, int]:
@@ -48,7 +48,7 @@ def classify_online(
     :param data_module: A data module, used for pre-processing the image.
     :type data_module: PhenoCamDataModule
     :param model: The model to use.
-    :type model: PhenoCamResNet
+    :type model: PhenoCamClassifier
     :param categories: The categories to use.
     :type categories: list[str]
     :param img_url: The URL of the image to run classification on.
@@ -76,7 +76,7 @@ def classify_online(
 
 def classify_offline(
     data_module: PhenoCamDataModule,
-    model: PhenoCamResNet,
+    model: PhenoCamClassifier,
     categories: list[str],
     img_path: str | Path,
 ) -> tuple[np.array, int]:
@@ -85,7 +85,7 @@ def classify_offline(
     :param data_module: A data module, used for pre-processing the image.
     :type data_module: PhenoCamDataModule
     :param model: The model to use.
-    :type model: PhenoCamResNet
+    :type model: PhenoCamClassifier
     :param categories: The image categories.
     :type categories: list[str]
     :param img_path: The file path of the image to classify.
@@ -108,21 +108,24 @@ def load_model_from_file(model_path: str | Path):
     :type model_path: str | Path
 
     :return: The loaded model.
-    :rtype: PhenoCamResNet
+    :rtype: PhenoCamClassifier
     """
-    model = PhenoCamResNet.load_from_checkpoint(model_path)
+    model = PhenoCamClassifier.load_from_checkpoint(model_path)
     model.eval()
     model.freeze()
     return model
 
 
 def run_model_offline(
-    model: PhenoCamResNet, site_name: str, categories: list[str], img_dir: str | Path
+    model: PhenoCamClassifier,
+    site_name: str,
+    categories: list[str],
+    img_dir: str | Path,
 ) -> pd.DataFrame:
     """Gets predicted labels for all images in a directory, writing the results to a CSV and returning as a DataFrame.
 
     :param model: The model to use.
-    :type model: PhenoCamResNet
+    :type model: PhenoCamClassifier
     :param site_name: The name of the PhenoCam site.
     :type site_name: str
     :param categories: The categories as strings.
@@ -159,12 +162,12 @@ def run_model_offline(
 
 
 def run_model_online(
-    model: PhenoCamResNet, site_name: str, categories: list[str], urls: str | Path
+    model: PhenoCamClassifier, site_name: str, categories: list[str], urls: str | Path
 ) -> pd.DataFrame:
     """Gets predicted labels for images online, writing the results to a CSV and returning as a DataFrame.
 
     :param model: The model to use.
-    :type model: PhenoCamResNet
+    :type model: PhenoCamClassifier
     :param site_name: The name of the PhenoCam site.
     :type site_name: str
     :param urls: The name of a file containing all the URLs, one per line.

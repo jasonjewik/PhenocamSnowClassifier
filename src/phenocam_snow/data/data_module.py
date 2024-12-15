@@ -1,54 +1,15 @@
 from pathlib import Path
 from typing import Any, Literal
 
-import torch
-from lightning import LightningDataModule
-from torch.utils.data import DataLoader, Dataset, random_split
+import lightning
+from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
-from torchvision.io import decode_image
 from torchvision.models import ResNet18_Weights
 
-from phenocam_snow.utils import download, label_images, read_labels
+from phenocam_snow.data.dataset import PhenoCamDataset
 
 
-class PhenoCamImageDataset(Dataset):
-    """PyTorch dataset for PhenoCam images."""
-
-    def __init__(
-        self,
-        img_dir: str | Path,
-        labels_file: str | Path,
-        transform: torch.nn.Module | None = None,
-    ):
-        r"""
-        .. highlight:: python
-
-        :param img_dir: The directory where all the images are contained.
-        :type img_dir: str | Path
-        :param labels_file: The path of the labels file for the images in :python:`img_dir`.
-        :type labels_file: str | Path
-        :param transform: The transform to apply to the images.
-        :type transform: torch.nn.Module | None
-        """
-        df = read_labels(labels_file)
-        self.img_labels = df[["filename", "int_label"]]
-        if not isinstance(img_dir, Path):
-            img_dir = Path(img_dir)
-        self.img_dir = img_dir
-        self.transform = transform
-
-    def __len__(self) -> int:
-        return len(self.img_labels)
-
-    def __getitem__(self, idx) -> tuple[torch.Tensor, int]:
-        img = decode_image(self.img_dir / self.img_labels.iat[idx, 0])
-        if self.transform:
-            img = self.transform(img)
-        label = self.img_labels.iat[idx, 1]
-        return img, label
-
-
-class PhenoCamDataModule(LightningDataModule):  # pragma: no cover
+class PhenoCamDataModule(lightning.LightningDataModule):  # pragma: no cover
     """LightningDataModule that wraps the PhenoCam image dataset class."""
 
     def __init__(
@@ -157,7 +118,7 @@ class PhenoCamDataModule(LightningDataModule):  # pragma: no cover
             raise ValueError(f"{stage} is not a valid stage")
 
         if stage in ("fit", None):
-            img_dataset = PhenoCamImageDataset(
+            img_dataset = PhenoCamDataset(
                 self.train_dir, self.train_labels, transform=self.augment
             )
             train_size = round(len(img_dataset) * 0.8)
@@ -168,7 +129,7 @@ class PhenoCamDataModule(LightningDataModule):  # pragma: no cover
             self.dims = self.img_train[0][0].shape
 
         if stage in ("test", None):
-            self.img_test = PhenoCamImageDataset(
+            self.img_test = PhenoCamDataset(
                 self.test_dir, self.test_labels, transform=self.preprocess
             )
             self.dims = getattr(self, "dims", self.img_test[0][0].shape)

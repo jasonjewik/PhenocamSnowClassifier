@@ -8,8 +8,8 @@ import lightning as L
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers import TensorBoardLogger
 
-from phenocam_snow.data import PhenoCamDataModule
-from phenocam_snow.model import PhenoCamResNet
+from phenocam_snow.data.data_module import PhenoCamDataModule
+from phenocam_snow.model.classifier import PhenoCamClassifier
 
 
 def main():
@@ -87,7 +87,7 @@ def train_model_with_new_data(
     n_train: int,
     n_test: int,
     classes: list[str],
-) -> PhenoCamResNet:
+) -> PhenoCamClassifier:
     """Pipeline for building a model on new data.
 
     :param resnet_variant: The ResNet variant to use as the model backbone.
@@ -108,7 +108,7 @@ def train_model_with_new_data(
     :type classes: list[str]
 
     :return: The best model obtained during training.
-    :rtype: PhenoCamResNet
+    :rtype: PhenoCamClassifier
     """
     train_dir = f"{site_name}_train"
     test_dir = f"{site_name}_test"
@@ -165,7 +165,7 @@ def train_model_with_existing_data(
     train_dir: str | Path,
     test_dir: str | Path,
     classes: list[str],
-) -> PhenoCamResNet:
+) -> PhenoCamClassifier:
     """Pipeline for building model with already downloaded/labeled data.
 
     :param resnet_variant: The ResNet variant to use as the model backbone.
@@ -186,7 +186,7 @@ def train_model_with_existing_data(
     :type classes: list[str]
 
     :return: The best model obtained during training.
-    :rtype: PhenoCamResNet
+    :rtype: PhenoCamClassifier
     """
     if not isinstance(train_dir, Path):
         train_dir = Path(train_dir)
@@ -222,10 +222,10 @@ def _fit_and_eval_model(
     learning_rate: float,
     weight_decay: float,
     max_epochs: int,
-) -> PhenoCamResNet:
+) -> PhenoCamClassifier:
     """Helper function for above public methods. Returns the best model."""
     data_module.setup(stage="fit")
-    model = PhenoCamResNet(resnet_variant, n_classes, learning_rate, weight_decay)
+    model = PhenoCamClassifier(resnet_variant, n_classes, learning_rate, weight_decay)
     logger = TensorBoardLogger(save_dir=os.getcwd(), name=f"{site_name}_lightning_logs")
     callbacks = [EarlyStopping(monitor="val_loss", mode="min", min_delta=1e-8)]
     trainer = L.Trainer(
@@ -248,7 +248,7 @@ def _fit_and_eval_model(
     with open(best_models_csv, "a") as f:
         f.write(f"{datetime.now().isoformat()},{site_name},{best_model_path}\n")
 
-    best_model = PhenoCamResNet.load_from_checkpoint(best_model_path)
+    best_model = PhenoCamClassifier.load_from_checkpoint(best_model_path)
     best_model.freeze()
     print(f"Path of best model: {best_model_path}")
     return best_model
